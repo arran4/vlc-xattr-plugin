@@ -9,4 +9,4 @@ Package: libxattrplaying_plugin
 Architecture: any
 Depends: vlc
 Description: A plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags` list anytime you watch a video
-
+Version: 0.1.2
