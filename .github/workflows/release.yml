@@ -33,6 +33,8 @@ jobs:
 
       - name: Build DEB package
         run: |
+          mkdir -p build/debian/DEBIAN/
+          cp debian/* build/debian/DEBIAN/
           mkdir -p build/debian/usr/lib/x86_64-linux-gnu/vlc/plugins/misc
           cp lib/libxattrplaying_plugin.so build/debian/usr/lib/x86_64-linux-gnu/vlc/plugins/misc/
           cd build
