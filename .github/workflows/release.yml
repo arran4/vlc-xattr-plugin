@@ -22,7 +22,7 @@ jobs:
           cmakeVersion: '3.28'
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm libvlc-dev vlc libvlccore-dev ruby ruby-dev rubygems build-essential
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm libvlc-dev vlc libvlccore-dev build-essential
 
       - name: Build project
         run: |
@@ -42,10 +42,10 @@ jobs:
 
       - name: Setup RPM package
         run: |
-          gem install fpm
-          mkdir -p build/rpm/usr/lib/x86_64-linux-gnu/vlc/plugins/misc
-          cp lib/libxattrplaying_plugin.so build/rpm/usr/lib/x86_64-linux-gnu/vlc/plugins/misc/
-          fpm -s dir -t rpm -n xattrplaying_plugin -v ${GITHUB_REF#refs/tags/} --prefix /usr build/rpm
+          mkdir -p build/rpm/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          cp spec/libxattrplaying_plugin.spec build/rpm/SPECS/
+          cp lib/libxattrplaying_plugin.so build/rpm/BUILD/
+          rpmbuild --define "_topdir $(pwd)/build/rpm" -bb build/rpm/SPECS/libxattrplaying_plugin.spec
 
       - name: Create Release
         id: create_release
