@@ -34,15 +34,15 @@ jobs:
       - name: Build DEB package
         run: |
           mkdir -p build/debian/usr/local/bin
-          cp build/myapp build/debian/usr/local/bin/
+          cp build/xattrplaying_plugin build/debian/usr/local/bin/
           cd build
-          dpkg-deb --build debian myapp_${GITHUB_REF#refs/tags/}.deb
+          dpkg-deb --build debian xattrplaying_plugin_${GITHUB_REF#refs/tags/}.deb
 
       - name: Build RPM package
         run: |
           mkdir -p build/rpm/usr/local/bin
-          cp build/myapp build/rpm/usr/local/bin/
-          fpm -s dir -t rpm -n myapp -v ${GITHUB_REF#refs/tags/} --prefix /usr/local build/rpm
+          cp build/xattrplaying_plugin build/rpm/usr/local/bin/
+          fpm -s dir -t rpm -n xattrplaying_plugin -v ${GITHUB_REF#refs/tags/} --prefix /usr/local build/rpm
 
       - name: Create Release
         id: create_release
@@ -61,8 +61,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/myapp_${GITHUB_REF#refs/tags/}.deb
-          asset_name: myapp_${GITHUB_REF#refs/tags/}.deb
+          asset_path: build/xattrplaying_plugin_${GITHUB_REF#refs/tags/}.deb
+          asset_name: xattrplaying_plugin_${GITHUB_REF#refs/tags/}.deb
           asset_content_type: application/vnd.debian.binary-package
 
       - name: Upload RPM package to Release
@@ -71,6 +71,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/myapp-${GITHUB_REF#refs/tags/}-1.x86_64.rpm
-          asset_name: myapp-${GITHUB_REF#refs/tags/}-1.x86_64.rpm
+          asset_path: build/xattrplaying_plugin-${GITHUB_REF#refs/tags/}-1.x86_64.rpm
+          asset_name: xattrplaying_plugin-${GITHUB_REF#refs/tags/}-1.x86_64.rpm
           asset_content_type: application/x-rpm
