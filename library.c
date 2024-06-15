@@ -25,7 +25,7 @@ static int ItemChange(vlc_object_t *p_this, const char *psz_var,
                       vlc_value_t oldval, vlc_value_t newval, void *p_data);
 
 struct current_item_t {
-    vlc_tick_t  i_start;            /**< playing start    */
+    // vlc_tick_t  i_start;            /**< playing start    */
 };
 
 struct intf_sys_t {
@@ -102,7 +102,7 @@ static int ItemChange(vlc_object_t *p_this, const char *psz_var,
         return VLC_SUCCESS;
     }
 
-    p_sys->p_current_item.i_start = mdate();
+    // p_sys->p_current_item.i_start = mdate(); TODO - switch on multiple different tags based on progress.
 
     p_sys->p_input = vlc_object_hold(p_input);
     var_AddCallback(p_input, "intf-event", PlayingChange, p_intf);
