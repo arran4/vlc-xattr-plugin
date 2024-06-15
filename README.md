@@ -2,6 +2,8 @@
 
 This is a plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags` list anytime you watch a video.
 
+![img.png](doc/img.png)
+
 Currently for any system that supports `setxattr` and `getxattr` which AFAIK is just Linux, but Mac might, and Windows might via WSL. (It should be possible to port it.)
 
 # How to build it? 
@@ -15,4 +17,10 @@ Requirements:
 * VLC headers
 * Standard C Development Libraries for Linux
 * Cmake
+
+# How to use it
+
+You will need to enable it in the settings once you have placed it in the correct directory:
+
+![Screenshot_20240615_221813.png](doc/Screenshot_20240615_221813.png)
 
