@@ -42,7 +42,7 @@ jobs:
 
       - name: Setup RPM package
         run: |
-          gem install --no-ri --no-rdoc fpm
+          gem install fpm
           mkdir -p build/rpm/usr/lib/x86_64-linux-gnu/vlc/plugins/misc
           cp lib/libxattrplaying_plugin.so build/rpm/usr/lib/x86_64-linux-gnu/vlc/plugins/misc/
           fpm -s dir -t rpm -n xattrplaying_plugin -v ${GITHUB_REF#refs/tags/} --prefix /usr build/rpm
