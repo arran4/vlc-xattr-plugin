@@ -1,0 +1,76 @@
+name: Build and Release DEB and RPM
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Semantic version tags
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up CMake
+        uses: lukka/get-cmake@v3
+        with:
+          cmakeVersion: '3.18.4'
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm
+
+      - name: Build project
+        run: |
+          mkdir build
+          cd build
+          cmake ..
+          make
+
+      - name: Build DEB package
+        run: |
+          mkdir -p build/debian/usr/local/bin
+          cp build/myapp build/debian/usr/local/bin/
+          cd build
+          dpkg-deb --build debian myapp_${GITHUB_REF#refs/tags/}.deb
+
+      - name: Build RPM package
+        run: |
+          mkdir -p build/rpm/usr/local/bin
+          cp build/myapp build/rpm/usr/local/bin/
+          fpm -s dir -t rpm -n myapp -v ${GITHUB_REF#refs/tags/} --prefix /usr/local build/rpm
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload DEB package to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/myapp_${GITHUB_REF#refs/tags/}.deb
+          asset_name: myapp_${GITHUB_REF#refs/tags/}.deb
+          asset_content_type: application/vnd.debian.binary-package
+
+      - name: Upload RPM package to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/myapp-${GITHUB_REF#refs/tags/}-1.x86_64.rpm
+          asset_name: myapp-${GITHUB_REF#refs/tags/}-1.x86_64.rpm
+          asset_content_type: application/x-rpm
