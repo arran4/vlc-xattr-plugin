@@ -5,7 +5,7 @@ Maintainer: Arran Ubels <arran4@gmail.com>
 Build-Depends: debhelper (>= 9)
 Standards-Version: 3.9.6
 Homepage: https://github.com/arran4/vlc-xattr-plugin/tree/main
-Package: libxattrplaying_plugin
+Package: libxattrplaying-plugin
 Architecture: any
 Depends: vlc
 Description: A plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags` list anytime you watch a video
