@@ -66,8 +66,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/my_c_app_${{ steps.tag_name.outputs.tag_name }}.deb
-          asset_name: my_c_app_${{ steps.tag_name.outputs.tag_name }}.deb
+          asset_path: build/xattrplaying_plugin_v${{ steps.tag_name.outputs.tag_name }}.deb
+          asset_name: xattrplaying_plugin_v${{ steps.tag_name.outputs.tag_name }}.deb
           asset_content_type: application/vnd.debian.binary-package
 
       - name: Upload RPM package to Release
