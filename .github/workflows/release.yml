@@ -33,16 +33,16 @@ jobs:
 
       - name: Build DEB package
         run: |
-          mkdir -p build/debian/usr/local/bin
-          cp build/xattrplaying_plugin build/debian/usr/local/bin/
+          mkdir -p build/rpm/usr/lib/x86_64-linux-gnu/vlc/plugins/misc
+          cp lib/libxattrplaying_plugin.so build/debian/usr/lib/x86_64-linux-gnu/vlc/plugins/misc/
           cd build
           dpkg-deb --build debian xattrplaying_plugin_${GITHUB_REF#refs/tags/}.deb
 
       - name: Build RPM package
         run: |
-          mkdir -p build/rpm/usr/local/bin
-          cp build/xattrplaying_plugin build/rpm/usr/local/bin/
-          fpm -s dir -t rpm -n xattrplaying_plugin -v ${GITHUB_REF#refs/tags/} --prefix /usr/local build/rpm
+          mkdir -p build/rpm/usr/lib/x86_64-linux-gnu/vlc/plugins/misc
+          cp lib/libxattrplaying_plugin.so build/rpm/usr/lib/x86_64-linux-gnu/vlc/plugins/misc/
+          fpm -s dir -t rpm -n xattrplaying_plugin -v ${GITHUB_REF#refs/tags/} --prefix /usr build/rpm
 
       - name: Create Release
         id: create_release
