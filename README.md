@@ -2,6 +2,12 @@
 
 This is a plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags` list anytime you watch a video.
 
+```bash
+% attr -g xdg.tags ~/Downloads/14⧸6⧸2024\ \[NU2402V166S00\].mp4
+Attribute "xdg.tags" had a 4 byte value for /home/arran/Downloads/14⧸6⧸2024 [NU2402V166S00].mp4:
+seen
+```
+
 ![img.png](doc/img.png)
 
 Currently for any system that supports `setxattr` and `getxattr` which AFAIK is just Linux, but Mac might, and Windows might via WSL. (It should be possible to port it.)
