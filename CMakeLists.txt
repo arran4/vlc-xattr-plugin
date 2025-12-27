@@ -61,7 +61,7 @@ include_directories(
         ${VLC_INCLUDE_DIR}/plugins
 )
 
-add_definitions(-DMODULE_STRING=\"xattrplaystat\")
+add_definitions(-DMODULE_STRING=\"xattrplaying_plugin\")
 add_definitions(-D__PLUGIN__)
 add_definitions(-D_REENTRANT)
 add_definitions(-D_THREAD_SAFE)
