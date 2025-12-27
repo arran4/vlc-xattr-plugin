@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-analyze:
+    name: Build and analyze (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ubuntu-24.04
+            image: ubuntu:24.04
+            install: |
+              set -eux
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential \
+                clang \
+                clang-tidy \
+                cppcheck \
+                cmake \
+                git \
+                pkg-config \
+                libvlc-dev \
+                libvlccore-dev \
+                vlc-plugin-base
+          - label: fedora-40
+            image: fedora:40
+            install: |
+              set -eux
+              dnf -y update
+              dnf -y install \
+                @development-tools \
+                clang-tools-extra \
+                cppcheck \
+                cmake \
+                git \
+                pkg-config \
+                vlc-devel
+    steps:
+      - name: Install system dependencies
+        run: ${{ matrix.install }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo
+
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Run clang-tidy
+        run: clang-tidy -p build library.c tag_utils.c
+
+      - name: Run cppcheck
+        run: cppcheck --enable=warning,performance,style --std=c11 --inline-suppr --suppress=missingIncludeSystem --project=build/compile_commands.json

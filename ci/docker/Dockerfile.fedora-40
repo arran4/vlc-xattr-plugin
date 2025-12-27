@@ -1,0 +1,23 @@
+FROM fedora:40
+
+RUN set -eux; \
+    dnf -y update; \
+    dnf -y install \
+        @development-tools \
+        clang-tools-extra \
+        cppcheck \
+        cmake \
+        git \
+        pkg-config \
+        vlc-devel; \
+    dnf clean all
+
+WORKDIR /workspace/vlc-xattr-plugin
+
+COPY . /workspace/vlc-xattr-plugin
+
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && \
+    cmake --build build --config RelWithDebInfo && \
+    ctest --test-dir build --output-on-failure && \
+    clang-tidy -p build library.c tag_utils.c && \
+    cppcheck --enable=warning,performance,style --std=c11 --inline-suppr --suppress=missingIncludeSystem --project=build/compile_commands.json
