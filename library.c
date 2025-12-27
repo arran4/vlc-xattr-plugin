@@ -6,8 +6,12 @@
 #include <vlc_stream.h>
 #include <vlc_threads.h>
 #include <vlc_playlist.h>
+#include <ctype.h>
+#include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
 
@@ -23,6 +27,10 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                          vlc_value_t oldval, vlc_value_t newval, void *p_data);
 static int ItemChange(vlc_object_t *p_this, const char *psz_var,
                       vlc_value_t oldval, vlc_value_t newval, void *p_data);
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 struct current_item_t {
     // vlc_tick_t  i_start;            /**< playing start    */
@@ -110,6 +118,98 @@ static int ItemChange(vlc_object_t *p_this, const char *psz_var,
     return VLC_SUCCESS;
 }
 
+static int hex_value(char c)
+{
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F')
+        return 10 + (c - 'A');
+    return -1;
+}
+
+static bool DecodeUriPath(const char *uri_path, char *decoded, size_t decoded_size)
+{
+    size_t out = 0;
+    for (size_t i = 0; uri_path[i] != '\0'; ++i) {
+        if (out + 1 >= decoded_size)
+            return false;
+
+        if (uri_path[i] == '%') {
+            if (!isxdigit((unsigned char)uri_path[i + 1]) ||
+                !isxdigit((unsigned char)uri_path[i + 2]))
+                return false;
+
+            int hi = hex_value(uri_path[i + 1]);
+            int lo = hex_value(uri_path[i + 2]);
+            if (hi < 0 || lo < 0)
+                return false;
+
+            decoded[out++] = (char)((hi << 4) | lo);
+            i += 2;
+        } else {
+            decoded[out++] = uri_path[i];
+        }
+    }
+
+    decoded[out] = '\0';
+    return true;
+}
+
+static bool FileUriToPath(vlc_object_t *p_this, const char *psz_uri,
+                          char *file_path, size_t file_path_size)
+{
+    const char *scheme_end = strstr(psz_uri, "://");
+    if (scheme_end == NULL) {
+        msg_Dbg(p_this, "Skipping URI without scheme: %s", psz_uri);
+        return false;
+    }
+
+    size_t scheme_len = (size_t)(scheme_end - psz_uri);
+    if (scheme_len != 4 || strncasecmp(psz_uri, "file", 4) != 0) {
+        msg_Dbg(p_this, "Skipping non-file URI: %s", psz_uri);
+        return false;
+    }
+
+    const char *path_start = scheme_end + 3;
+
+    if (strncmp(path_start, "localhost", 9) == 0 &&
+        (path_start[9] == '/' || path_start[9] == '\\'))
+        path_start += 9;
+
+    if (*path_start == '\0') {
+        msg_Dbg(p_this, "Skipping empty file URI path: %s", psz_uri);
+        return false;
+    }
+
+    if (*path_start != '/') {
+        msg_Dbg(p_this, "Skipping unsupported file URI host: %s", psz_uri);
+        return false;
+    }
+
+    if (!DecodeUriPath(path_start, file_path, file_path_size)) {
+        msg_Warn(p_this, "Failed to decode file URI: %s", psz_uri);
+        return false;
+    }
+
+#ifdef _WIN32
+    if (file_path[0] == '/' &&
+        isalpha((unsigned char)file_path[1]) &&
+        file_path[2] == ':') {
+        size_t len = strlen(file_path);
+        memmove(file_path, file_path + 1, len);
+    }
+
+    for (char *p = file_path; *p != '\0'; ++p) {
+        if (*p == '/')
+            *p = '\\';
+    }
+#endif
+
+    return true;
+}
+
 static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                          vlc_value_t oldval, vlc_value_t newval, void *p_data)
 {
@@ -127,21 +227,12 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
 
         char *psz_uri = input_item_GetURI(p_item);
         if (psz_uri) {
-            // Convert VLC URI to a regular file path
-            char file_path[1024];
-            snprintf(file_path, sizeof(file_path), "%s", psz_uri + 7); // Remove "file://"
-            free(psz_uri);
-
-            // Decode URL-encoded characters (if any)
-            // Simple decoding assuming no complex cases
-            for (char *p = file_path; *p; p++) {
-                if (*p == '%') {
-                    int c;
-                    sscanf(p + 1, "%2x", &c);
-                    *p = (char)c;
-                    memmove(p + 1, p + 3, strlen(p + 3) + 1);
-                }
+            char file_path[PATH_MAX];
+            if (!FileUriToPath(p_this, psz_uri, file_path, sizeof(file_path))) {
+                free(psz_uri);
+                return VLC_SUCCESS;
             }
+            free(psz_uri);
 
             char list[XATTR_SIZE];
             ssize_t list_len;
@@ -157,7 +248,7 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             char *userXdgTags = strdup(newTag);
 
             // Print each attribute and its value
-            int found = false;
+            bool found = false;
             for (char *attr = list; attr < list + list_len; attr += strlen(attr) + 1) {
                 char value[XATTR_SIZE];
                 ssize_t value_len = getxattr(file_path, attr, value, XATTR_SIZE);
