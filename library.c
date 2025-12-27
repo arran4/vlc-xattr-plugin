@@ -8,6 +8,7 @@
 #include <vlc_playlist.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
@@ -153,33 +154,65 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             }
 
             char list[XATTR_SIZE];
+            char *list_dynamic = NULL;
             ssize_t list_len;
 
             // Get the list of extended attributes
             list_len = listxattr(file_path, list, XATTR_SIZE);
+            if (list_len == -1 && errno == ERANGE) {
+                list_len = listxattr(file_path, NULL, 0);
+                if (list_len == -1) {
+                    perror("listxattr");
+                    exit(EXIT_FAILURE);
+                }
+                list_dynamic = malloc(list_len);
+                if (list_dynamic == NULL) {
+                    perror("malloc");
+                    exit(EXIT_FAILURE);
+                }
+                list_len = listxattr(file_path, list_dynamic, list_len);
+            }
             if (list_len == -1) {
                 msg_Err(p_this, "Failed to list xattrs for %s: %s", file_path, strerror(errno));
                 return VLC_SUCCESS;
             }
+
+            char *list_buffer = list_dynamic ? list_dynamic : list;
 
             char *newTag = "seen";
             char *userXdgTags = strdup(newTag);
 
             // Print each attribute and its value
             int found = false;
-            for (char *attr = list; attr < list + list_len; attr += strlen(attr) + 1) {
+            for (char *attr = list_buffer; attr < list_buffer + list_len; attr += strlen(attr) + 1) {
                 char value[XATTR_SIZE];
+                char *value_dynamic = NULL;
                 ssize_t value_len = getxattr(file_path, attr, value, XATTR_SIZE);
+                if (value_len == -1 && errno == ERANGE) {
+                    value_len = getxattr(file_path, attr, NULL, 0);
+                    if (value_len == -1) {
+                        perror("getxattr");
+                        continue;
+                    }
+                    value_dynamic = malloc(value_len);
+                    if (value_dynamic == NULL) {
+                        perror("malloc");
+                        continue;
+                    }
+                    value_len = getxattr(file_path, attr, value_dynamic, value_len);
+                }
                 if (value_len == -1) {
                     perror("getxattr");
+                    free(value_dynamic);
                     continue;
                 }
+                char *value_buffer = value_dynamic ? value_dynamic : value;
                 if (strcasecmp("user.xdg.tags", attr) == 0) {
                     int c = 0;
                     for (int i = 0; i <= value_len; i++) {
-                        switch (value[i]) {
+                        switch (value_buffer[i]) {
                         case '\0': case ',':
-                                if (strncmp(newTag, &value[c], i - c) == 0) {
+                                if (strncmp(newTag, &value_buffer[c], i - c) == 0) {
                                     found = true;
                                 }
                                 c = i + 1;
@@ -190,13 +223,14 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                         }
                     }
                     free(userXdgTags);
-                    userXdgTags = strndup(value, value_len);
+                    userXdgTags = strndup(value_buffer, value_len);
                     if (!found) {
                         userXdgTags = realloc(userXdgTags, value_len + 2 + strlen(newTag));
                         userXdgTags = strcat(userXdgTags, ",");
                         userXdgTags = strcat(userXdgTags, newTag);
                     }
                 }
+                free(value_dynamic);
             }
 
             if (!found) {
@@ -209,6 +243,7 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             if (userXdgTags != NULL) {
                 free(userXdgTags);
             }
+            free(list_dynamic);
         }
     }
     return VLC_SUCCESS;
