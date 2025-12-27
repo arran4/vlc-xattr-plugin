@@ -13,10 +13,10 @@
 #include <errno.h>
 
 #include "tag_utils.h"
+#include "compat.h"
 #include <string.h>
-#include <strings.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
+#include "xattr_compat.h"
 #include <errno.h>
 
 #ifndef N_
@@ -270,67 +270,36 @@ static int PositionChange(vlc_object_t *p_this, const char *psz_var,
 
 static void WriteTag(vlc_object_t *p_this, const char *psz_path, const char *newTag, const char *psz_xattr_key)
 {
-    char list[XATTR_SIZE];
-    char *list_dynamic = NULL;
-    ssize_t list_len;
+    char value[XATTR_SIZE];
+    char *value_dynamic = NULL;
+    ssize_t value_len;
 
-    // Get the list of extended attributes
-    list_len = listxattr(psz_path, list, XATTR_SIZE);
-    if (list_len == -1 && errno == ERANGE) {
-        list_len = listxattr(psz_path, NULL, 0);
-        if (list_len == -1) {
-            perror("listxattr");
-            return;
-        }
-        list_dynamic = malloc(list_len);
-        if (list_dynamic == NULL) {
-            perror("malloc");
-            return;
-        }
-        list_len = listxattr(psz_path, list_dynamic, list_len);
-    }
-    if (list_len == -1) {
-        msg_Err(p_this, "Failed to list xattrs for %s: %s", psz_path, strerror(errno));
-        return;
-    }
-
-    char *list_buffer = list_dynamic ? list_dynamic : list;
-    char *userXdgTags = strdup(newTag);
-
-    // Print each attribute and its value
-    bool xattr_key_found = false;
-    bool tag_added = false;
-    for (char *attr = list_buffer; attr < list_buffer + list_len; attr += strlen(attr) + 1) {
-        char value[XATTR_SIZE];
-        char *value_dynamic = NULL;
-        ssize_t value_len = getxattr(psz_path, attr, value, XATTR_SIZE);
-        if (value_len == -1 && errno == ERANGE) {
-            value_len = getxattr(psz_path, attr, NULL, 0);
-            if (value_len == -1) {
-                perror("getxattr");
-                continue;
-            }
+    // Check if the attribute already exists
+    value_len = sys_getxattr(psz_path, psz_xattr_key, value, XATTR_SIZE);
+    if (value_len == -1 && errno == ERANGE) {
+        // Buffer too small, get size first
+        value_len = sys_getxattr(psz_path, psz_xattr_key, NULL, 0);
+        if (value_len != -1) {
             value_dynamic = malloc(value_len);
             if (value_dynamic == NULL) {
                 perror("malloc");
-                continue;
+                return;
             }
-            value_len = getxattr(psz_path, attr, value_dynamic, value_len);
+            value_len = sys_getxattr(psz_path, psz_xattr_key, value_dynamic, value_len);
         }
-        if (value_len == -1) {
-            perror("getxattr");
-            free(value_dynamic);
-            continue;
-        }
+    }
+
+    char *userXdgTags = strdup(newTag);
+    bool tag_added = false;
+    bool xattr_key_found = false;
+
+    if (value_len != -1) {
+        xattr_key_found = true;
         char *value_buffer = value_dynamic ? value_dynamic : value;
-        if (strcasecmp(psz_xattr_key, attr) == 0) {
-            xattr_key_found = true;
-            free(userXdgTags);
-            char *value_copy = strndup(value_buffer, value_len);
-            userXdgTags = xdg_tags_append_if_missing(value_copy, newTag, &tag_added);
-            free(value_copy);
-        }
-        free(value_dynamic);
+        free(userXdgTags);
+        char *value_copy = strndup(value_buffer, value_len);
+        userXdgTags = xdg_tags_append_if_missing(value_copy, newTag, &tag_added);
+        free(value_copy);
     }
 
     if ((!xattr_key_found || tag_added) && userXdgTags != NULL) {
@@ -345,7 +314,7 @@ static void WriteTag(vlc_object_t *p_this, const char *psz_path, const char *new
             userXdgTags = resized_tags;
             userXdgTags[tag_len] = '\0';
 
-            int ret = setxattr(psz_path, psz_xattr_key, userXdgTags, required_size, 0);
+            int ret = sys_setxattr(psz_path, psz_xattr_key, userXdgTags, required_size, 0);
             if (ret == -1) {
                 int err = errno;
                 const char *psz_reason = xattr_error_reason(err);
@@ -362,7 +331,7 @@ static void WriteTag(vlc_object_t *p_this, const char *psz_path, const char *new
     if (userXdgTags != NULL) {
         free(userXdgTags);
     }
-    free(list_dynamic);
+    free(value_dynamic);
 }
 
 static int PlayingChange(vlc_object_t *p_this, const char *psz_var,

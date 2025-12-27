@@ -48,22 +48,20 @@ set(SOURCES
 # Find VLC libraries and headers
 find_path(VLC_INCLUDE_DIR vlc_common.h
         PATHS ${VLC_INCLUDE_DIRS} /usr/include /usr/local/include
-        PATH_SUFFIXES include/vlc vlc vlc/plugins plugins
-)
+        PATH_SUFFIXES include/vlc vlc vlc/plugins plugins)
 
 find_library(VLC_LIBVLC_LIBRARY
         NAMES vlc libvlc
         HINTS ${VLC_LIBRARY_DIRS}
-        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR}
-)
+        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR})
 
 find_library(VLC_VLCCORE_LIBRARY
         NAMES vlccore libvlccore
         HINTS ${VLC_LIBRARY_DIRS}
-        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR}
-)
+        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR})
 
-if (VLC_INCLUDE_DIR AND VLC_LIBVLC_LIBRARY AND VLC_VLCCORE_LIBRARY)
+if(VLC_INCLUDE_DIR AND VLC_LIBVLC_LIBRARY AND VLC_VLCCORE_LIBRARY)
+    message(STATUS "VLC found, building plugin")
     message(STATUS "VLC_INCLUDE_DIR: ${VLC_INCLUDE_DIR}")
     message(STATUS "VLC_LIBVLC_LIBRARY: ${VLC_LIBVLC_LIBRARY}")
     message(STATUS "VLC_VLCCORE_LIBRARY: ${VLC_VLCCORE_LIBRARY}")
@@ -98,7 +96,7 @@ if (VLC_INCLUDE_DIR AND VLC_LIBVLC_LIBRARY AND VLC_VLCCORE_LIBRARY)
     # Set installation directory for the shared library
     install(TARGETS xattrplaying_plugin LIBRARY DESTINATION "${VLC_PLUGIN_INSTALL_DIR}")
 else()
-    message(WARNING "VLC not found, disabling plugin build")
+    message(WARNING "VLC not found, plugin will not be built. Only tests will be built if enabled.")
 endif()
 
 if(BUILD_TESTING)
@@ -106,6 +104,18 @@ if(BUILD_TESTING)
             tests/tag_utils_tests.c
             tag_utils.c
             tag_utils.h)
-    target_link_libraries(tag_utils_tests PRIVATE m)
+    if(UNIX)
+        target_link_libraries(tag_utils_tests PRIVATE m)
+    endif()
     add_test(NAME tag_utils_tests COMMAND tag_utils_tests)
+
+    # xattr compatibility tests
+    add_executable(xattr_compat_tests
+            tests/xattr_compat_test.c)
+    # Add mocks include directory
+    target_include_directories(xattr_compat_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests/mocks/vlc")
+    if(UNIX)
+        target_link_libraries(xattr_compat_tests PRIVATE m)
+    endif()
+    add_test(NAME xattr_compat_tests COMMAND xattr_compat_tests)
 endif()
