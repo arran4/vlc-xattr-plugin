@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <sys/types.h>
+#include "compat.h"
 
 /*
  * Cross-platform xattr wrappers.

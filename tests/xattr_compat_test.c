@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include "../compat.h"
 
 #ifdef _WIN32
 // Setup mock environment for Windows
@@ -58,7 +59,7 @@ void test_set_get_xattr(void) {
     }
 
     if (len != (ssize_t)strlen(attr_value)) {
-        fprintf(stderr, "Size mismatch: expected %zu, got %zd\n", strlen(attr_value), len);
+        fprintf(stderr, "Size mismatch: expected %zu, got %ld\n", strlen(attr_value), (long)len);
         remove(test_file);
         exit(1);
     }

@@ -88,7 +88,9 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       - name: Run clang-tidy
+        if: runner.os == 'Linux'
         run: clang-tidy -p build library.c tag_utils.c
 
       - name: Run cppcheck
+        if: runner.os == 'Linux'
         run: cppcheck --enable=warning,performance,style --std=c11 --inline-suppr --suppress=missingIncludeSystem --project=build/compile_commands.json

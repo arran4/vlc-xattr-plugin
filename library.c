@@ -13,8 +13,8 @@
 #include <errno.h>
 
 #include "tag_utils.h"
+#include "compat.h"
 #include <string.h>
-#include <strings.h>
 #include <sys/types.h>
 #include "xattr_compat.h"
 #include <errno.h>

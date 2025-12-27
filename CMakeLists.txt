@@ -104,7 +104,9 @@ if(BUILD_TESTING)
             tests/tag_utils_tests.c
             tag_utils.c
             tag_utils.h)
-    target_link_libraries(tag_utils_tests PRIVATE m)
+    if(UNIX)
+        target_link_libraries(tag_utils_tests PRIVATE m)
+    endif()
     add_test(NAME tag_utils_tests COMMAND tag_utils_tests)
 
     # xattr compatibility tests
@@ -112,7 +114,9 @@ if(BUILD_TESTING)
             tests/xattr_compat_test.c)
     # Add mocks include directory
     target_include_directories(xattr_compat_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests/mocks/vlc")
-    target_link_libraries(xattr_compat_tests PRIVATE m)
+    if(UNIX)
+        target_link_libraries(xattr_compat_tests PRIVATE m)
+    endif()
     add_test(NAME xattr_compat_tests COMMAND xattr_compat_tests)
 endif()
 

@@ -1,4 +1,5 @@
 #include "tag_utils.h"
+#include "compat.h"
 
 #include <ctype.h>
 #include <stdlib.h>
