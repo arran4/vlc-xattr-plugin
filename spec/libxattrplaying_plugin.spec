@@ -18,8 +18,11 @@ This is a plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags` 
 %install
 mkdir -p %{buildroot}/usr/lib64/vlc/plugins/misc/
 cp libxattrplaying_plugin.so %{buildroot}/usr/lib64/vlc/plugins/misc/
+mkdir -p %{buildroot}%{_defaultlicensedir}/%{name}
+cp LICENSE %{buildroot}%{_defaultlicensedir}/%{name}/
 
 %files
+%license %{_defaultlicensedir}/%{name}/LICENSE
 /usr/lib64/vlc/plugins/misc/libxattrplaying_plugin.so
 
 %changelog
