@@ -9,9 +9,12 @@ include(GNUInstallDirs)
 
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
-    pkg_check_modules(VLC QUIET libvlc)
+    pkg_check_modules(VLC QUIET vlc-plugin)
     if(NOT VLC_FOUND)
-        message(STATUS "libvlc not found via pkg-config, falling back to default search paths")
+        pkg_check_modules(VLC QUIET libvlc)
+    endif()
+    if(NOT VLC_FOUND)
+        message(STATUS "VLC (vlc-plugin or libvlc) not found via pkg-config, falling back to default search paths")
     endif()
 endif()
 
@@ -45,7 +48,7 @@ set(SOURCES
 # Find VLC libraries and headers
 find_path(VLC_INCLUDE_DIR vlc_common.h
         PATHS ${VLC_INCLUDE_DIRS} /usr/include /usr/local/include
-        PATH_SUFFIXES include/vlc vlc vlc/plugins
+        PATH_SUFFIXES include/vlc vlc vlc/plugins plugins
         REQUIRED)
 
 find_library(VLC_LIBVLC_LIBRARY
