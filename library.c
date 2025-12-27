@@ -28,6 +28,7 @@
 #endif
 
 #define XATTR_SIZE 10000  // Maximum size of an extended attribute value
+#define DEFAULT_TAG_NAME "seen"
 
 static int Open(vlc_object_t *);
 static void Close(vlc_object_t *);
@@ -68,6 +69,9 @@ struct intf_sys_t {
     struct current_item_t   p_current_item;     /**< song being played      */
     input_thread_t         *p_input;            /**< current input thread   */
     input_item_t *p_item;                       /**< Previous item */
+    bool b_tagging_enabled;                     /**< Whether to write xattrs */
+    char *psz_tag_name;                         /**< Tag to write */
+    char *psz_skip_paths;                       /**< Comma/newline-separated path prefixes to skip */
 };
 
 vlc_module_begin()
@@ -76,9 +80,67 @@ vlc_module_begin()
     set_category(CAT_INTERFACE)
     set_subcategory(SUBCAT_INTERFACE_CONTROL)
     set_capability("interface", 1)
-//    add_bool( "XAttrPlayInfo-append", 1, "XAttrPlayInfo-APPEND_TEXT2", "XAttrPlayInfo-APPEND_LONGTEXT2", false ) // TODO make the tag configurable (And based on %)
+    /* Module options:
+     *  - xattr-tagging-enabled: master switch to enable/disable xattr writes.
+     *  - xattr-tag-name: tag to append to user.xdg.tags (default: "seen").
+     *  - xattr-skip-paths: comma/newline separated absolute path prefixes to skip.
+     */
+    add_bool("xattr-tagging-enabled", true,
+             N_("Enable tagging"),
+             N_("Write the configured tag to user.xdg.tags when playback starts."),
+             false)
+    add_string("xattr-tag-name", DEFAULT_TAG_NAME,
+               N_("Tag name"),
+               N_("Tag to append to the user.xdg.tags extended attribute."),
+               false)
+    add_string("xattr-skip-paths", "",
+               N_("Skip paths"),
+               N_("Comma- or newline-separated list of absolute path prefixes that should not be tagged."),
+               false)
     set_callbacks(Open, Close)
 vlc_module_end()
+
+static char *trim_token(char *psz_token)
+{
+    while (*psz_token && isspace((unsigned char)*psz_token))
+        psz_token++;
+
+    char *psz_end = psz_token + strlen(psz_token);
+    while (psz_end > psz_token && isspace((unsigned char)*(psz_end - 1)))
+        *(--psz_end) = '\0';
+
+    return psz_token;
+}
+
+static bool should_skip_path(const char *psz_path, const char *psz_skip_list)
+{
+    if (psz_skip_list == NULL || *psz_skip_list == '\0')
+        return false;
+
+    char *psz_copy = strdup(psz_skip_list);
+    if (psz_copy == NULL)
+        return false;
+
+    bool b_match = false;
+    char *saveptr = NULL;
+    for (char *psz_token = strtok_r(psz_copy, ",;\n", &saveptr);
+         psz_token != NULL;
+         psz_token = strtok_r(NULL, ",;\n", &saveptr))
+    {
+        psz_token = trim_token(psz_token);
+        if (*psz_token == '\0')
+            continue;
+
+        size_t len = strlen(psz_token);
+        if (strncmp(psz_path, psz_token, len) == 0) {
+            b_match = true;
+            break;
+        }
+    }
+
+    free(psz_copy);
+    return b_match;
+}
 
 static int Open(vlc_object_t *p_this)
 {
@@ -86,6 +148,13 @@ static int Open(vlc_object_t *p_this)
     p_intf->p_sys = calloc(1, sizeof(intf_sys_t));
     printf("Report Playing extension activated\n");
     msg_Info(p_this, "Report Playing extension activated");
+
+    if (p_intf->p_sys == NULL)
+        return VLC_ENOMEM;
+
+    p_intf->p_sys->b_tagging_enabled = var_InheritBool(p_intf, "xattr-tagging-enabled");
+    p_intf->p_sys->psz_tag_name = var_InheritString(p_intf, "xattr-tag-name");
+    p_intf->p_sys->psz_skip_paths = var_InheritString(p_intf, "xattr-skip-paths");
 
     var_AddCallback(pl_Get(p_intf), "input-current", ItemChange, p_intf);
 
@@ -104,6 +173,8 @@ static void Close(vlc_object_t *p_this)
         vlc_object_release(p_sys->p_input);
         p_sys->p_input = NULL;
     }
+    free(p_sys->psz_tag_name);
+    free(p_sys->psz_skip_paths);
     free(p_sys);
     p_intf->p_sys = NULL;
 }
@@ -234,7 +305,31 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
 
             char *list_buffer = list_dynamic ? list_dynamic : list;
 
-            const char *newTag = "seen";
+            if (!p_sys->b_tagging_enabled) {
+                msg_Dbg(p_this, "Tagging disabled via module options; skipping %s", psz_path);
+                free(psz_uri);
+                free(psz_path);
+                return VLC_SUCCESS;
+            }
+
+            const char *psz_tag_name = p_sys->psz_tag_name && *p_sys->psz_tag_name
+                                        ? p_sys->psz_tag_name
+                                        : DEFAULT_TAG_NAME;
+            if (*psz_tag_name == '\0') {
+                msg_Warn(p_this, "Configured tag name is empty; skipping xattr update for %s", psz_path);
+                free(psz_uri);
+                free(psz_path);
+                return VLC_SUCCESS;
+            }
+
+            if (should_skip_path(psz_path, p_sys->psz_skip_paths)) {
+                msg_Dbg(p_this, "Path matches skip list; not tagging %s", psz_path);
+                free(psz_uri);
+                free(psz_path);
+                return VLC_SUCCESS;
+            }
+
+            const char *newTag = psz_tag_name;
             char *userXdgTags = strdup(newTag);
 
             // Print each attribute and its value
