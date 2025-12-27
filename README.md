@@ -91,3 +91,20 @@ VLC looks for interface plugins under the `vlc/plugins/misc` subtree of its plug
 You will need to enable it in the settings once you have placed it in the correct directory:
 
 ![Screenshot_20240615_221813.png](doc/Screenshot_20240615_221813.png)
+
+## Module options
+
+The plugin exposes a few options under *Tools → Preferences → Interface → Control interfaces*:
+
+* **Enable tagging** (`xattr-tagging-enabled`, default: on): master switch to write `user.xdg.tags`.
+* **Tag name** (`xattr-tag-name`, default: `seen`): value appended to `user.xdg.tags`.
+* **Skip paths** (`xattr-skip-paths`): comma or newline separated list of absolute path prefixes to skip (e.g., `/tmp,/mnt/ramdisk`).
+
+Set the options via the GUI or by adding the following lines to your `vlcrc`:
+
+```
+lua-intf=xattrplaying_plugin
+xattr-tagging-enabled=1
+xattr-tag-name=seen
+xattr-skip-paths=/tmp,/mnt/ramdisk
+```
