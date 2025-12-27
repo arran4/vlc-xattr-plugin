@@ -26,6 +26,7 @@ jobs:
               apt-get install -y --no-install-recommends \
                 ca-certificates \
                 build-essential \
+                ca-certificates \
                 clang \
                 clang-tidy \
                 cppcheck \
@@ -43,6 +44,7 @@ jobs:
               dnf -y install \
                 ca-certificates \
                 @development-tools \
+                ca-certificates \
                 clang-tools-extra \
                 cppcheck \
                 cmake \
