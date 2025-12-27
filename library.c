@@ -247,10 +247,20 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             }
 
             if (!found && userXdgTags != NULL) {
-                printf("Adding a extended attribute %s\n", newTag);
-                int ret = setxattr(psz_path, "user.xdg.tags", userXdgTags, strlen(userXdgTags), 0);
-                if (ret == -1) {
-                    perror("setxattr");
+                size_t user_tags_len = strlen(userXdgTags);
+                size_t buffer_size = user_tags_len + 1;
+                char *resized_tags = realloc(userXdgTags, buffer_size);
+
+                if (resized_tags == NULL) {
+                    msg_Err(p_this, "Failed to resize user.xdg.tags buffer");
+                } else {
+                    userXdgTags = resized_tags;
+                    userXdgTags[user_tags_len] = '\0';
+                    printf("Adding a extended attribute %s\n", newTag);
+                    int ret = setxattr(psz_path, "user.xdg.tags", userXdgTags, buffer_size, 0);
+                    if (ret == -1) {
+                        perror("setxattr");
+                    }
                 }
             }
             if (userXdgTags != NULL) {
