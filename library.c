@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
 #include <errno.h>
@@ -146,22 +147,50 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
 
         char *psz_uri = input_item_GetURI(p_item);
         if (psz_uri) {
-            // Convert VLC URI to a regular file path
-            char file_path[1024];
-            snprintf(file_path, sizeof(file_path), "%s", psz_uri + 7); // Remove "file://"
-            free(psz_uri);
+            char *psz_path = NULL;
+            const char *psz_scheme_end = strstr(psz_uri, "://");
 
-            // Decode URL-encoded characters (if any)
-            url_decode_inplace(file_path);
+            if (psz_scheme_end == NULL) {
+                msg_Dbg(p_this, "Skipping URI without scheme: %s", psz_uri);
+                free(psz_uri);
+                return VLC_SUCCESS;
+            }
+
+            size_t scheme_len = psz_scheme_end - psz_uri;
+            if (scheme_len != 4 || strncasecmp(psz_uri, "file", 4) != 0) {
+                msg_Dbg(p_this, "Skipping non-file URI: %s", psz_uri);
+                free(psz_uri);
+                return VLC_SUCCESS;
+            }
+
+            const char *psz_path_start = psz_scheme_end + 3; // Skip "://"
+            if (*psz_path_start == '\0') {
+                msg_Dbg(p_this, "Skipping file URI without a path: %s", psz_uri);
+                free(psz_uri);
+                return VLC_SUCCESS;
+            }
+
+            psz_path = strdup(psz_path_start);
+            if (psz_path == NULL) {
+                msg_Err(p_this, "Failed to allocate memory for path");
+                free(psz_uri);
+                return VLC_SUCCESS;
+            }
+
+            if (psz_path[0] == '/' && isalpha((unsigned char)psz_path[1]) && psz_path[2] == ':') {
+                memmove(psz_path, psz_path + 1, strlen(psz_path) + 1);
+            }
+
+            url_decode_inplace(psz_path);
 
             char list[XATTR_SIZE];
             char *list_dynamic = NULL;
             ssize_t list_len;
 
             // Get the list of extended attributes
-            list_len = listxattr(file_path, list, XATTR_SIZE);
+            list_len = listxattr(psz_path, list, XATTR_SIZE);
             if (list_len == -1 && errno == ERANGE) {
-                list_len = listxattr(file_path, NULL, 0);
+                list_len = listxattr(psz_path, NULL, 0);
                 if (list_len == -1) {
                     perror("listxattr");
                     exit(EXIT_FAILURE);
@@ -171,10 +200,12 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                     perror("malloc");
                     exit(EXIT_FAILURE);
                 }
-                list_len = listxattr(file_path, list_dynamic, list_len);
+                list_len = listxattr(psz_path, list_dynamic, list_len);
             }
             if (list_len == -1) {
-                msg_Err(p_this, "Failed to list xattrs for %s: %s", file_path, strerror(errno));
+                msg_Err(p_this, "Failed to list xattrs for %s: %s", psz_path, strerror(errno));
+                free(psz_uri);
+                free(psz_path);
                 return VLC_SUCCESS;
             }
 
@@ -188,9 +219,9 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             for (char *attr = list_buffer; attr < list_buffer + list_len; attr += strlen(attr) + 1) {
                 char value[XATTR_SIZE];
                 char *value_dynamic = NULL;
-                ssize_t value_len = getxattr(file_path, attr, value, XATTR_SIZE);
+                ssize_t value_len = getxattr(psz_path, attr, value, XATTR_SIZE);
                 if (value_len == -1 && errno == ERANGE) {
-                    value_len = getxattr(file_path, attr, NULL, 0);
+                    value_len = getxattr(psz_path, attr, NULL, 0);
                     if (value_len == -1) {
                         perror("getxattr");
                         continue;
@@ -200,7 +231,7 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                         perror("malloc");
                         continue;
                     }
-                    value_len = getxattr(file_path, attr, value_dynamic, value_len);
+                    value_len = getxattr(psz_path, attr, value_dynamic, value_len);
                 }
                 if (value_len == -1) {
                     perror("getxattr");
@@ -236,7 +267,7 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
 
             if (!found) {
                 printf("Adding a extended attribute %s\n", newTag);
-                int ret = setxattr(file_path, "user.xdg.tags", userXdgTags, strlen(userXdgTags), 0);
+                int ret = setxattr(psz_path, "user.xdg.tags", userXdgTags, strlen(userXdgTags), 0);
                 if (ret == -1) {
                     perror("setxattr");
                 }
@@ -245,6 +276,8 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                 free(userXdgTags);
             }
             free(list_dynamic);
+            free(psz_path);
+            free(psz_uri);
         }
     }
     return VLC_SUCCESS;
