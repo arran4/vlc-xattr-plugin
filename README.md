@@ -92,6 +92,27 @@ You will need to enable it in the settings once you have placed it in the correc
 
 ![Screenshot_20240615_221813.png](doc/Screenshot_20240615_221813.png)
 
+# Extended attribute requirements
+
+The tag is stored in the `user.xdg.tags` extended attribute. The filesystem that holds your media must allow writable user xattrs:
+
+* For Linux filesystems such as ext4 or xfs, ensure the mount has `user_xattr` enabled (most distributions do by default).
+* NTFS (including the default WSL mounts) and FAT/FAT32/exFAT generally do **not** expose the `user.*` namespace, so setting `user.xdg.tags` will fail.
+* Read-only mounts (e.g., optical media, read-only bind mounts, or mounts with `ro`) cannot accept new attributes.
+
+## Verifying xattr support
+
+You can test the capability on a sample file before using the plugin:
+
+```bash
+# Attempt to write a temporary tag
+setfattr -n user.xdg.tags -v "seen" /path/to/video.mp4
+
+# Read it back
+getfattr -n user.xdg.tags /path/to/video.mp4
+```
+
+If the first command fails with `Operation not supported` or `Read-only file system`, the filesystem or mount options do not allow writing `user.*` attributes. Move the media to a filesystem that supports user xattrs or remount with the appropriate options.
 ## Module options
 
 The plugin exposes a few options under *Tools → Preferences → Interface → Control interfaces*:
