@@ -5,22 +5,26 @@ Summary: A plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags`
 
 License: MIT
 URL: https://github.com/arran4/vlc-xattr-plugin
+BuildRequires: vlc-devel
+BuildRequires: cmake
+BuildRequires: gcc
+BuildRequires: make
 
 %description
 This is a plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags` list anytime you watch a video.
 
 %prep
-# No need for build stage as we build it earlier and we are non compliant
+%setup -q
 
 %build
-# No need for build stage as we build it earlier and we are non compliant
+%cmake -B build -S . -DVLC_PLUGIN_INSTALL_DIR=%{_libdir}/vlc/plugins/misc
+%cmake_build -B build
 
 %install
-mkdir -p %{buildroot}/usr/lib64/vlc/plugins/misc/
-cp libxattrplaying_plugin.so %{buildroot}/usr/lib64/vlc/plugins/misc/
+%cmake_install -B build
 
 %files
-/usr/lib64/vlc/plugins/misc/libxattrplaying_plugin.so
+%{_libdir}/vlc/plugins/misc/libxattrplaying_plugin.so
 
 %changelog
 * Sat Jan 01 2022 Arran Ubels <arran4@gmail.com> - 1.0-1
