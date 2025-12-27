@@ -24,6 +24,7 @@ jobs:
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
               apt-get install -y --no-install-recommends \
+                ca-certificates \
                 build-essential \
                 clang \
                 clang-tidy \
@@ -40,6 +41,7 @@ jobs:
               set -eux
               dnf -y update
               dnf -y install \
+                ca-certificates \
                 @development-tools \
                 clang-tools-extra \
                 cppcheck \
