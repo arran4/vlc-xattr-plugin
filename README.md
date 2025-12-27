@@ -12,6 +12,16 @@ seen
 
 Currently for any system that supports `setxattr` and `getxattr` which AFAIK is just Linux, but Mac might, and Windows might via WSL. (It should be possible to port it.)
 
+# Compatibility and platform support
+
+* **Tested VLC builds:** VLC 3.0.20 and 3.0.21 from distro packages on Linux.
+* **VLC APIs used:** interface module hooks (`set_capability("interface", 1)`), playlist callbacks (`input-current`, `intf-event`), and metadata helpers (`input_item_GetTitleFbName`, `input_item_GetURI`). The plugin needs headers from `vlc-plugin-dev`/`vlc-devel` packages that ship these interfaces.
+* **Filesystem APIs:** requires POSIX extended attributes (`listxattr`, `getxattr`, `setxattr`) and the `user.xdg.tags` namespace. Files must live on a filesystem that enables user xattrs (e.g., ext4/xfs with the `user_xattr` mount option).
+* **Platform notes:**
+  * Linux: supported and verified with the above VLC versions.
+  * WSL: the plugin only works when the media resides on a filesystem that exposes `user.*` xattrs (the default NTFS mounts in WSL do not). Use WSL2 virtual ext4 disks or other xattr-capable mounts.
+  * macOS: not yet tested. macOS supports extended attributes but typically uses the `com.apple.*` namespace, so behavior may vary; use VLC 3.x headers and verify `user.xdg.tags` is writable.
+
 # How to build it? 
 
 Requirements:
@@ -67,6 +77,14 @@ Distribution packaging may set different `libdir` defaults. Typical plugin desti
 * Arch Linux: `/usr/lib/vlc/plugins/misc`
 
 You can verify the active plugin path with `pkg-config --variable=pluginsdir vlc` or override it via `-DVLC_PLUGIN_INSTALL_DIR` when configuring CMake.
+
+### Plugin directory notes
+
+VLC looks for interface plugins under the `vlc/plugins/misc` subtree of its plugin search path. When installing without packaging:
+
+* System-wide installs typically land in `/usr/lib*/vlc/plugins/misc` based on your architecture (`lib` vs `lib64`).
+* User-local installs (e.g., `cmake --install` with `CMAKE_INSTALL_PREFIX=$HOME/.local`) will place the plugin in `${HOME}/.local/lib/vlc/plugins/misc`, which VLC discovers automatically when run from the same prefix.
+* If you pass a custom `-DVLC_PLUGIN_INSTALL_DIR`, ensure the final segment remains `vlc/plugins/misc` so VLC's plugin loader picks it up.
 
 # How to use it
 
