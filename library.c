@@ -43,6 +43,7 @@ struct intf_sys_t {
     struct current_item_t   p_current_item;     /**< song being played      */
     input_thread_t         *p_input;            /**< current input thread   */
     input_item_t *p_item;                       /**< Previous item */
+    bool skip_video_inputs;                     /**< whether to ignore inputs with video */
 };
 
 vlc_module_begin()
@@ -51,6 +52,9 @@ vlc_module_begin()
     set_category(CAT_INTERFACE)
     set_subcategory(SUBCAT_INTERFACE_CONTROL)
     set_capability("interface", 1)
+    add_bool("xattr-skip-video", false,
+             N_("Skip video inputs"),
+             N_("Do not update tags for items that contain a video track."), false)
 //    add_bool( "XAttrPlayInfo-append", 1, "XAttrPlayInfo-APPEND_TEXT2", "XAttrPlayInfo-APPEND_LONGTEXT2", false ) // TODO make the tag configurable (And based on %)
     set_callbacks(Open, Close)
 vlc_module_end()
@@ -61,6 +65,8 @@ static int Open(vlc_object_t *p_this)
     p_intf->p_sys = calloc(1, sizeof(intf_sys_t));
     printf("Report Playing extension activated\n");
     msg_Info(p_this, "Report Playing extension activated");
+
+    p_intf->p_sys->skip_video_inputs = var_InheritBool(p_intf, "xattr-skip-video");
 
     var_AddCallback(pl_Get(p_intf), "input-current", ItemChange, p_intf);
 
@@ -114,9 +120,9 @@ static int ItemChange(vlc_object_t *p_this, const char *psz_var,
     if (p_item == NULL)
         return VLC_SUCCESS;
 
-    if (var_CountChoices(p_input, "video-es"))
+    if (p_sys->skip_video_inputs && var_CountChoices(p_input, "video-es"))
     {
-        msg_Dbg(p_this, "Not an audio-only input, not submitting");
+        msg_Dbg(p_this, "Video track present and 'xattr-skip-video' is enabled, skipping");
         return VLC_SUCCESS;
     }
 
