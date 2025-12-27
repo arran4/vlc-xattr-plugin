@@ -113,3 +113,19 @@ getfattr -n user.xdg.tags /path/to/video.mp4
 ```
 
 If the first command fails with `Operation not supported` or `Read-only file system`, the filesystem or mount options do not allow writing `user.*` attributes. Move the media to a filesystem that supports user xattrs or remount with the appropriate options.
+## Module options
+
+The plugin exposes a few options under *Tools → Preferences → Interface → Control interfaces*:
+
+* **Enable tagging** (`xattr-tagging-enabled`, default: on): master switch to write `user.xdg.tags`.
+* **Tag name** (`xattr-tag-name`, default: `seen`): value appended to `user.xdg.tags`.
+* **Skip paths** (`xattr-skip-paths`): comma or newline separated list of absolute path prefixes to skip (e.g., `/tmp,/mnt/ramdisk`).
+
+Set the options via the GUI or by adding the following lines to your `vlcrc`:
+
+```
+lua-intf=xattrplaying_plugin
+xattr-tagging-enabled=1
+xattr-tag-name=seen
+xattr-skip-paths=/tmp,/mnt/ramdisk
+```
