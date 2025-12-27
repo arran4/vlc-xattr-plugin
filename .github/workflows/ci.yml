@@ -10,14 +10,14 @@ permissions:
 jobs:
   build-and-analyze:
     name: Build and analyze (${{ matrix.label }})
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ matrix.image }}
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - label: ubuntu-24.04
+            os: ubuntu-24.04
             image: ubuntu:24.04
             install: |
               set -eux
@@ -37,6 +37,7 @@ jobs:
                 libvlccore-dev \
                 vlc-plugin-base
           - label: fedora-40
+            os: ubuntu-latest
             image: fedora:40
             install: |
               set -eux
@@ -51,8 +52,27 @@ jobs:
                 git \
                 pkg-config \
                 vlc-devel
+          - label: macos-latest
+            os: macos-latest
+            install: |
+              brew install cmake vlc
+          - label: windows-latest
+            os: windows-latest
+            install: |
+              choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+              # VLC is hard to install dev headers on Windows via choco, we rely on mocks for tests
+              # and optional VLC build (if handled by CMake)
     steps:
       - name: Install system dependencies
+        if: runner.os == 'Linux'
+        run: ${{ matrix.install }}
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: ${{ matrix.install }}
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
         run: ${{ matrix.install }}
 
       - name: Checkout repository
