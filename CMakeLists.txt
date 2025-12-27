@@ -28,6 +28,7 @@ set(VLC_PLUGIN_INSTALL_DIR "${VLC_INSTALL_DIR}/plugins/misc" CACHE PATH
 # Set the source files for the extension
 set(SOURCES
         library.c
+        tag_utils.c
 )
 
 # Find VLC libraries and headers
@@ -83,6 +84,15 @@ set_target_properties(xattrplaying_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY "$
 
 # Set installation directory for the shared library
 install(TARGETS xattrplaying_plugin LIBRARY DESTINATION "${VLC_PLUGIN_INSTALL_DIR}")
+
+enable_testing()
+
+add_executable(tag_utils_tests
+        tests/tag_utils_tests.c
+        tag_utils.c
+        tag_utils.h)
+target_link_libraries(tag_utils_tests PRIVATE m)
+add_test(NAME tag_utils_tests COMMAND tag_utils_tests)
 
 # Optionally: Copy the plugin to VLC plugins directory for development/testing
 #add_custom_command(TARGET xattrplaying_plugin POST_BUILD

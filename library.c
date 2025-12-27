@@ -11,6 +11,8 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <errno.h>
+
+#include "tag_utils.h"
 #include <string.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
@@ -32,10 +34,6 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                          vlc_value_t oldval, vlc_value_t newval, void *p_data);
 static int ItemChange(vlc_object_t *p_this, const char *psz_var,
                       vlc_value_t oldval, vlc_value_t newval, void *p_data);
-static int hex_value(char c);
-static bool decode_percent_sequence(const char *p_src, char *p_decoded);
-static void url_decode_inplace(char *p_str);
-
 struct current_item_t {
     // vlc_tick_t  i_start;            /**< playing start    */
 };
@@ -180,7 +178,7 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
 
             char *list_buffer = list_dynamic ? list_dynamic : list;
 
-            char *newTag = "seen";
+            const char *newTag = "seen";
             char *userXdgTags = strdup(newTag);
 
             // Print each attribute and its value
@@ -209,32 +207,15 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                 }
                 char *value_buffer = value_dynamic ? value_dynamic : value;
                 if (strcasecmp("user.xdg.tags", attr) == 0) {
-                    int c = 0;
-                    for (int i = 0; i <= value_len; i++) {
-                        switch (value_buffer[i]) {
-                        case '\0': case ',':
-                                if (strncmp(newTag, &value_buffer[c], i - c) == 0) {
-                                    found = true;
-                                }
-                                c = i + 1;
-                            break;
-                        }
-                        if (found) {
-                            break;
-                        }
-                    }
                     free(userXdgTags);
-                    userXdgTags = strndup(value_buffer, value_len);
-                    if (!found) {
-                        userXdgTags = realloc(userXdgTags, value_len + 2 + strlen(newTag));
-                        userXdgTags = strcat(userXdgTags, ",");
-                        userXdgTags = strcat(userXdgTags, newTag);
-                    }
+                    char *value_copy = strndup(value_buffer, value_len);
+                    userXdgTags = xdg_tags_append_if_missing(value_copy, newTag, &found);
+                    free(value_copy);
                 }
                 free(value_dynamic);
             }
 
-            if (!found) {
+            if (!found && userXdgTags != NULL) {
                 printf("Adding a extended attribute %s\n", newTag);
                 int ret = setxattr(file_path, "user.xdg.tags", userXdgTags, strlen(userXdgTags), 0);
                 if (ret == -1) {
@@ -248,49 +229,4 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
         }
     }
     return VLC_SUCCESS;
-}
-
-static int hex_value(char c)
-{
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'a' && c <= 'f')
-        return 10 + (c - 'a');
-    if (c >= 'A' && c <= 'F')
-        return 10 + (c - 'A');
-    return -1;
-}
-
-static bool decode_percent_sequence(const char *p_src, char *p_decoded)
-{
-    if (p_src[0] != '%' || !isxdigit((unsigned char)p_src[1]) || !isxdigit((unsigned char)p_src[2]))
-        return false;
-
-    int hi = hex_value(p_src[1]);
-    int lo = hex_value(p_src[2]);
-    if (hi < 0 || lo < 0)
-        return false;
-
-    *p_decoded = (char)((hi << 4) | lo);
-    return true;
-}
-
-static void url_decode_inplace(char *p_str)
-{
-    char *p_read = p_str;
-    char *p_write = p_str;
-
-    while (*p_read != '\0') {
-        if (*p_read == '%' && p_read[1] != '\0' && p_read[2] != '\0') {
-            char decoded;
-            if (decode_percent_sequence(p_read, &decoded)) {
-                *p_write++ = decoded;
-                p_read += 3;
-                continue;
-            }
-        }
-        *p_write++ = *p_read++;
-    }
-
-    *p_write = '\0';
 }
