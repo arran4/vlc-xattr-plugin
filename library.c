@@ -8,6 +8,8 @@
 #include <vlc_playlist.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <ctype.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
@@ -26,6 +28,9 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                          vlc_value_t oldval, vlc_value_t newval, void *p_data);
 static int ItemChange(vlc_object_t *p_this, const char *psz_var,
                       vlc_value_t oldval, vlc_value_t newval, void *p_data);
+static int hex_value(char c);
+static bool decode_percent_sequence(const char *p_src, char *p_decoded);
+static void url_decode_inplace(char *p_str);
 
 struct current_item_t {
     // vlc_tick_t  i_start;            /**< playing start    */
@@ -143,15 +148,7 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             free(psz_uri);
 
             // Decode URL-encoded characters (if any)
-            // Simple decoding assuming no complex cases
-            for (char *p = file_path; *p; p++) {
-                if (*p == '%') {
-                    int c;
-                    sscanf(p + 1, "%2x", &c);
-                    *p = (char)c;
-                    memmove(p + 1, p + 3, strlen(p + 3) + 1);
-                }
-            }
+            url_decode_inplace(file_path);
 
             char list[XATTR_SIZE];
             char *list_dynamic = NULL;
@@ -183,7 +180,7 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             char *userXdgTags = strdup(newTag);
 
             // Print each attribute and its value
-            int found = false;
+            bool found = false;
             for (char *attr = list_buffer; attr < list_buffer + list_len; attr += strlen(attr) + 1) {
                 char value[XATTR_SIZE];
                 char *value_dynamic = NULL;
@@ -247,4 +244,49 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
         }
     }
     return VLC_SUCCESS;
+}
+
+static int hex_value(char c)
+{
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F')
+        return 10 + (c - 'A');
+    return -1;
+}
+
+static bool decode_percent_sequence(const char *p_src, char *p_decoded)
+{
+    if (p_src[0] != '%' || !isxdigit((unsigned char)p_src[1]) || !isxdigit((unsigned char)p_src[2]))
+        return false;
+
+    int hi = hex_value(p_src[1]);
+    int lo = hex_value(p_src[2]);
+    if (hi < 0 || lo < 0)
+        return false;
+
+    *p_decoded = (char)((hi << 4) | lo);
+    return true;
+}
+
+static void url_decode_inplace(char *p_str)
+{
+    char *p_read = p_str;
+    char *p_write = p_str;
+
+    while (*p_read != '\0') {
+        if (*p_read == '%' && p_read[1] != '\0' && p_read[2] != '\0') {
+            char decoded;
+            if (decode_percent_sequence(p_read, &decoded)) {
+                *p_write++ = decoded;
+                p_read += 3;
+                continue;
+            }
+        }
+        *p_write++ = *p_read++;
+    }
+
+    *p_write = '\0';
 }
