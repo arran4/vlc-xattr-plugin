@@ -1,0 +1,28 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        clang \
+        clang-tidy \
+        cppcheck \
+        cmake \
+        git \
+        pkg-config \
+        libvlc-dev \
+        libvlccore-dev \
+        vlc-plugin-base; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace/vlc-xattr-plugin
+
+COPY . /workspace/vlc-xattr-plugin
+
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && \
+    cmake --build build --config RelWithDebInfo && \
+    ctest --test-dir build --output-on-failure && \
+    clang-tidy -p build library.c tag_utils.c && \
+    cppcheck --enable=warning,performance,style --std=c11 --inline-suppr --suppress=missingIncludeSystem --project=build/compile_commands.json

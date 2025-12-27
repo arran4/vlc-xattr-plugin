@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.28)
 project(xattrplaying_plugin C)
 
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+include(CTest)
+
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
     pkg_check_modules(VLC QUIET libvlc)
@@ -85,14 +90,14 @@ set_target_properties(xattrplaying_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY "$
 # Set installation directory for the shared library
 install(TARGETS xattrplaying_plugin LIBRARY DESTINATION "${VLC_PLUGIN_INSTALL_DIR}")
 
-enable_testing()
-
-add_executable(tag_utils_tests
-        tests/tag_utils_tests.c
-        tag_utils.c
-        tag_utils.h)
-target_link_libraries(tag_utils_tests PRIVATE m)
-add_test(NAME tag_utils_tests COMMAND tag_utils_tests)
+if(BUILD_TESTING)
+    add_executable(tag_utils_tests
+            tests/tag_utils_tests.c
+            tag_utils.c
+            tag_utils.h)
+    target_link_libraries(tag_utils_tests PRIVATE m)
+    add_test(NAME tag_utils_tests COMMAND tag_utils_tests)
+endif()
 
 # Optionally: Copy the plugin to VLC plugins directory for development/testing
 #add_custom_command(TARGET xattrplaying_plugin POST_BUILD
