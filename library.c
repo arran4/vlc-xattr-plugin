@@ -35,6 +35,31 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                          vlc_value_t oldval, vlc_value_t newval, void *p_data);
 static int ItemChange(vlc_object_t *p_this, const char *psz_var,
                       vlc_value_t oldval, vlc_value_t newval, void *p_data);
+
+static const char *xattr_error_reason(int err)
+{
+    switch (err) {
+        case EACCES:
+        case EPERM:
+            return "Insufficient permissions to write extended attributes";
+        case EROFS:
+            return "Cannot modify extended attributes on a read-only filesystem";
+        case ENOSPC:
+            return "No space left on device to store extended attributes";
+        case EDQUOT:
+            return "Quota exceeded while writing extended attributes";
+#ifdef ENOTSUP
+        case ENOTSUP:
+            return "Filesystem does not support extended attributes";
+#endif
+#ifdef EOPNOTSUPP
+        case EOPNOTSUPP:
+            return "Filesystem does not support extended attributes";
+#endif
+        default:
+            return NULL;
+    }
+}
 struct current_item_t {
     // vlc_tick_t  i_start;            /**< playing start    */
 };
@@ -250,7 +275,15 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
                 printf("Adding a extended attribute %s\n", newTag);
                 int ret = setxattr(psz_path, "user.xdg.tags", userXdgTags, strlen(userXdgTags), 0);
                 if (ret == -1) {
-                    perror("setxattr");
+                    int err = errno;
+                    const char *psz_reason = xattr_error_reason(err);
+                    if (psz_reason != NULL) {
+                        msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s (%s)",
+                                psz_path, strerror(err), psz_reason);
+                    } else {
+                        msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s", psz_path,
+                                strerror(err));
+                    }
                 }
             }
             if (userXdgTags != NULL) {
