@@ -25,6 +25,7 @@ jobs:
               apt-get update
               apt-get install -y --no-install-recommends \
                 build-essential \
+                ca-certificates \
                 clang \
                 clang-tidy \
                 cppcheck \
@@ -41,6 +42,7 @@ jobs:
               dnf -y update
               dnf -y install \
                 @development-tools \
+                ca-certificates \
                 clang-tools-extra \
                 cppcheck \
                 cmake \
