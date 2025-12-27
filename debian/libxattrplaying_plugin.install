@@ -1,1 +1,1 @@
-usr/lib64/vlc/plugins/misc/libxattrplaying_plugin.so
+usr/lib/$(DEB_HOST_MULTIARCH)/vlc/plugins/misc/libxattrplaying_plugin.so
