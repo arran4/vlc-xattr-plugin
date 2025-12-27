@@ -3,5 +3,5 @@
 /bin/libvlc_xattr_playing.so
 /bin/
 /lib/
-build/
+/build/
 test_build/

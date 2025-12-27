@@ -3,6 +3,11 @@
 
 #include <stdbool.h>
 
+typedef struct {
+    char *name;
+    int percent;
+} xattr_target_t;
+
 /**
  * Decode a percent-encoded triplet (e.g. "%20") into its byte value.
  *
@@ -31,5 +36,26 @@ void url_decode_inplace(char *p_str);
  */
 char *xdg_tags_append_if_missing(const char *existing_tags, const char *new_tag,
                                  bool *out_added);
+
+/**
+ * Parse a configuration string into a list of xattr_target_t.
+ * Format: "name@percent,name2@percent2"
+ * Example: "seen@90,started@0"
+ *
+ * \param config_str The configuration string.
+ * \param count Output pointer for the number of targets found.
+ * \return Array of xattr_target_t (caller must free using free_xattr_targets).
+ */
+xattr_target_t *parse_xattr_targets(const char *config_str, int *count);
+
+/**
+ * Free the array of targets returned by parse_xattr_targets.
+ */
+void free_xattr_targets(xattr_target_t *targets, int count);
+
+/**
+ * Trim whitespace from both ends of a string in place.
+ */
+char *trim_token(char *psz_token);
 
 #endif // TAG_UTILS_H

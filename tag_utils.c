@@ -3,6 +3,19 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+
+char *trim_token(char *psz_token)
+{
+    while (*psz_token && isspace((unsigned char)*psz_token))
+        psz_token++;
+
+    char *psz_end = psz_token + strlen(psz_token);
+    while (psz_end > psz_token && isspace((unsigned char)*(psz_end - 1)))
+        *(--psz_end) = '\0';
+
+    return psz_token;
+}
 
 static int hex_value(char c)
 {
@@ -101,4 +114,79 @@ char *xdg_tags_append_if_missing(const char *existing_tags, const char *new_tag,
         *out_added = true;
 
     return result;
+}
+
+xattr_target_t *parse_xattr_targets(const char *config_str, int *count)
+{
+    *count = 0;
+    if (config_str == NULL || *config_str == '\0')
+        return NULL;
+
+    char *str_copy = strdup(config_str);
+    if (!str_copy) return NULL;
+
+    // First pass: count items
+    int capacity = 0;
+    char *saveptr;
+    char *tmp = strdup(config_str);
+    char *tok = strtok_r(tmp, ",", &saveptr);
+    while (tok) {
+        capacity++;
+        tok = strtok_r(NULL, ",", &saveptr);
+    }
+    free(tmp);
+
+    if (capacity == 0) {
+        free(str_copy);
+        return NULL;
+    }
+
+    xattr_target_t *targets = calloc(capacity, sizeof(xattr_target_t));
+    if (!targets) {
+        free(str_copy);
+        return NULL;
+    }
+
+    tok = strtok_r(str_copy, ",", &saveptr);
+    while (tok) {
+        tok = trim_token(tok);
+        if (*tok) {
+            char *at_sign = strchr(tok, '@');
+            int percent = 0;
+            char *name = NULL;
+
+            if (at_sign) {
+                *at_sign = '\0';
+                name = strdup(tok);
+                percent = atoi(at_sign + 1);
+                if (percent < 0) percent = 0;
+                if (percent > 100) percent = 100;
+            } else {
+                name = strdup(tok);
+                percent = 0; // Default to 0 if no percentage specified
+            }
+
+            char *trimmed_name = trim_token(name); // trim name again just in case
+
+            if (trimmed_name && *trimmed_name) {
+                targets[*count].name = strdup(trimmed_name);
+                targets[*count].percent = percent;
+                (*count)++;
+            }
+            free(name);
+        }
+        tok = strtok_r(NULL, ",", &saveptr);
+    }
+
+    free(str_copy);
+    return targets;
+}
+
+void free_xattr_targets(xattr_target_t *targets, int count)
+{
+    if (!targets) return;
+    for (int i = 0; i < count; i++) {
+        free(targets[i].name);
+    }
+    free(targets);
 }
