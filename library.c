@@ -64,9 +64,12 @@ static void Close(vlc_object_t *p_this)
     var_DelCallback(pl_Get(p_intf), "input-current", ItemChange, p_intf);
     if (p_sys->p_input != NULL)
     {
-//        var_DelCallback(p_sys->p_input, "intf-event", PlayingChange, p_intf);
+        var_DelCallback(p_sys->p_input, "intf-event", PlayingChange, p_intf);
         vlc_object_release(p_sys->p_input);
+        p_sys->p_input = NULL;
     }
+    free(p_sys);
+    p_intf->p_sys = NULL;
 }
 
 /*****************************************************************************
