@@ -1,32 +1,48 @@
 cmake_minimum_required(VERSION 3.28)
 project(xattrplaying_plugin C)
 
-find_library(VLC_PULSE_PATH NAMES vlc_pulse
-        PATHS
-            /usr/lib
-            /usr/lib64
-            /usr/local/lib
-            /usr/local/lib64
-        PATH_SUFFIXES "vlc"
-        NO_CACHE REQUIRED)
-get_filename_component(VLC_INSTALL_DIR "${VLC_PULSE_PATH}" DIRECTORY )
-message(STATUS "VLC_INSTALL_DIR: ${VLC_INSTALL_DIR} from ${VLC_PULSE_PATH}")
+find_package(PkgConfig QUIET)
+if (PkgConfig_FOUND)
+    pkg_check_modules(VLC_PLUGIN QUIET vlc-plugin)
+endif()
+
+set(_VLC_CANDIDATE_LIB_DIRS
+        /usr/lib/x86_64-linux-gnu
+        /usr/lib64
+        /usr/lib
+        /usr/local/lib
+        /usr/local/lib64)
+
+if (VLC_PLUGIN_FOUND)
+    message(STATUS "Found VLC using pkg-config")
+    set(VLC_INCLUDE_DIRS
+            ${VLC_PLUGIN_INCLUDE_DIRS}
+            ${VLC_PLUGIN_INCLUDE_DIRS}/plugins)
+    set(VLC_LIBRARIES ${VLC_PLUGIN_LIBRARIES})
+else()
+    find_path(VLC_INCLUDE_DIR
+            NAMES vlc_common.h
+            PATH_SUFFIXES vlc include/vlc
+            REQUIRED)
+
+    find_library(VLC_LIBRARIES
+            NAMES vlccore
+            PATHS ${_VLC_CANDIDATE_LIB_DIRS}
+            PATH_SUFFIXES "" "vlc"
+            REQUIRED)
+
+    set(VLC_INCLUDE_DIRS
+            ${VLC_INCLUDE_DIR}
+            ${VLC_INCLUDE_DIR}/plugins)
+endif()
 
 # Set the source files for the extension
 set(SOURCES
         library.c
 )
 
-# Find VLC libraries and headers
-find_path(VLC_INCLUDE_DIR vlc.h PATH_SUFFIXES include/vlc REQUIRED)
-
-message(STATUS "VLC_INCLUDE_DIR: ${VLC_INCLUDE_DIR}")
-
 # Include directories for VLC headers
-include_directories(
-        ${VLC_INCLUDE_DIR}
-        ${VLC_INCLUDE_DIR}/plugins
-)
+include_directories(${VLC_INCLUDE_DIRS})
 
 add_definitions(-DMODULE_STRING=\"xattrplaystat\")
 add_definitions(-D__PLUGIN__)
@@ -39,7 +55,7 @@ add_definitions(-D_FILE_OFFSET_BITS=64)
 add_library(xattrplaying_plugin MODULE ${SOURCES})
 
 # Link against VLC libraries
-target_link_libraries(xattrplaying_plugin ${VLC_LIBRARY})
+target_link_libraries(xattrplaying_plugin ${VLC_LIBRARIES})
 
 # Set the output directory for the shared library
 set_target_properties(xattrplaying_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
