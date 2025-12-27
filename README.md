@@ -86,6 +86,21 @@ VLC looks for interface plugins under the `vlc/plugins/misc` subtree of its plug
 * User-local installs (e.g., `cmake --install` with `CMAKE_INSTALL_PREFIX=$HOME/.local`) will place the plugin in `${HOME}/.local/lib/vlc/plugins/misc`, which VLC discovers automatically when run from the same prefix.
 * If you pass a custom `-DVLC_PLUGIN_INSTALL_DIR`, ensure the final segment remains `vlc/plugins/misc` so VLC's plugin loader picks it up.
 
+### Gentoo
+
+You can install this plugin from the `arrans_overlay`.
+
+1. Add the overlay:
+    ```bash
+    eselect repository add arrans_overlay git https://github.com/arran4/arrans_overlay.git
+    emaint sync -r arrans_overlay
+    ```
+
+2. Install the package:
+    ```bash
+    emerge media-video/vlc-xattrplaying_plugin
+    ```
+
 # How to use it
 
 You will need to enable it in the settings once you have placed it in the correct directory:
