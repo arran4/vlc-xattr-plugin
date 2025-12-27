@@ -12,6 +12,9 @@ find_library(VLC_PULSE_PATH NAMES vlc_pulse
 get_filename_component(VLC_INSTALL_DIR "${VLC_PULSE_PATH}" DIRECTORY )
 message(STATUS "VLC_INSTALL_DIR: ${VLC_INSTALL_DIR} from ${VLC_PULSE_PATH}")
 
+set(VLC_PLUGIN_INSTALL_DIR "${VLC_INSTALL_DIR}/plugins/misc" CACHE PATH
+        "Installation directory for the VLC misc plugin")
+
 # Set the source files for the extension
 set(SOURCES
         library.c
@@ -44,10 +47,10 @@ target_link_libraries(xattrplaying_plugin ${VLC_LIBRARY})
 # Set the output directory for the shared library
 set_target_properties(xattrplaying_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 
-## Set installation directory for the shared library
-#install(TARGETS xattrplaying_plugin LIBRARY DESTINATION ${VLC_INSTALL_DIR}/plugins/misc/)
-#
-## Optionally: Copy the plugin to VLC plugins directory for development/testing
+# Set installation directory for the shared library
+install(TARGETS xattrplaying_plugin LIBRARY DESTINATION "${VLC_PLUGIN_INSTALL_DIR}")
+
+# Optionally: Copy the plugin to VLC plugins directory for development/testing
 #add_custom_command(TARGET xattrplaying_plugin POST_BUILD
 #        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:xattrplaying_plugin> ${VLC_INSTALL_DIR}/plugins/$<TARGET_FILE_NAME:xattrplaying_plugin>
 #)
