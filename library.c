@@ -8,8 +8,10 @@
 #include <vlc_playlist.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
+#include <errno.h>
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -149,8 +151,8 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
             // Get the list of extended attributes
             list_len = listxattr(file_path, list, XATTR_SIZE);
             if (list_len == -1) {
-                perror("listxattr");
-                exit(EXIT_FAILURE);
+                msg_Err(p_this, "Failed to list xattrs for %s: %s", file_path, strerror(errno));
+                return VLC_SUCCESS;
             }
 
             char *newTag = "seen";
