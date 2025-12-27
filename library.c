@@ -19,6 +19,10 @@
 #include <sys/xattr.h>
 #include <errno.h>
 
+#ifndef N_
+#define N_(str) (str)
+#endif
+
 #ifndef MODULE_STRING
 #define MODULE_STRING "xattrplaying_plugin"
 #endif
@@ -59,7 +63,7 @@ static const char *xattr_error_reason(int err)
         case ENOTSUP:
             return "Filesystem does not support extended attributes";
 #endif
-#ifdef EOPNOTSUPP
+#if defined(EOPNOTSUPP) && (!defined(ENOTSUP) || EOPNOTSUPP != ENOTSUP)
         case EOPNOTSUPP:
             return "Filesystem does not support extended attributes";
 #endif
