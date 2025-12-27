@@ -49,55 +49,57 @@ set(SOURCES
 find_path(VLC_INCLUDE_DIR vlc_common.h
         PATHS ${VLC_INCLUDE_DIRS} /usr/include /usr/local/include
         PATH_SUFFIXES include/vlc vlc vlc/plugins plugins
-        REQUIRED)
+)
 
 find_library(VLC_LIBVLC_LIBRARY
         NAMES vlc libvlc
         HINTS ${VLC_LIBRARY_DIRS}
         PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR}
-        REQUIRED
 )
 
 find_library(VLC_VLCCORE_LIBRARY
         NAMES vlccore libvlccore
         HINTS ${VLC_LIBRARY_DIRS}
         PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR}
-        REQUIRED
 )
 
-message(STATUS "VLC_INCLUDE_DIR: ${VLC_INCLUDE_DIR}")
-message(STATUS "VLC_LIBVLC_LIBRARY: ${VLC_LIBVLC_LIBRARY}")
-message(STATUS "VLC_VLCCORE_LIBRARY: ${VLC_VLCCORE_LIBRARY}")
+if (VLC_INCLUDE_DIR AND VLC_LIBVLC_LIBRARY AND VLC_VLCCORE_LIBRARY)
+    message(STATUS "VLC_INCLUDE_DIR: ${VLC_INCLUDE_DIR}")
+    message(STATUS "VLC_LIBVLC_LIBRARY: ${VLC_LIBVLC_LIBRARY}")
+    message(STATUS "VLC_VLCCORE_LIBRARY: ${VLC_VLCCORE_LIBRARY}")
 
-# Include directories for VLC headers
-include_directories(
-        ${VLC_INCLUDE_DIR}
-        ${VLC_INCLUDE_DIRS}
-        ${VLC_INCLUDE_DIR}/plugins
-)
+    # Include directories for VLC headers
+    include_directories(
+            ${VLC_INCLUDE_DIR}
+            ${VLC_INCLUDE_DIRS}
+            ${VLC_INCLUDE_DIR}/plugins
+    )
 
-add_definitions(-DMODULE_STRING=\"xattrplaying_plugin\")
-add_definitions(-D__PLUGIN__)
-add_definitions(-D_REENTRANT)
-add_definitions(-D_THREAD_SAFE)
-add_definitions(-D_FILE_OFFSET_BITS=64)
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+    add_definitions(-DMODULE_STRING=\"xattrplaying_plugin\")
+    add_definitions(-D__PLUGIN__)
+    add_definitions(-D_REENTRANT)
+    add_definitions(-D_THREAD_SAFE)
+    add_definitions(-D_FILE_OFFSET_BITS=64)
+    # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 
-# Specify the output shared library name
-add_library(xattrplaying_plugin MODULE ${SOURCES})
-target_link_directories(xattrplaying_plugin PRIVATE ${VLC_LIBRARY_DIRS})
+    # Specify the output shared library name
+    add_library(xattrplaying_plugin MODULE ${SOURCES})
+    target_link_directories(xattrplaying_plugin PRIVATE ${VLC_LIBRARY_DIRS})
 
-# Link against VLC libraries
-target_link_libraries(xattrplaying_plugin
-        PRIVATE
-        ${VLC_LIBVLC_LIBRARY}
-        ${VLC_VLCCORE_LIBRARY})
+    # Link against VLC libraries
+    target_link_libraries(xattrplaying_plugin
+            PRIVATE
+            ${VLC_LIBVLC_LIBRARY}
+            ${VLC_VLCCORE_LIBRARY})
 
-# Set the output directory for the shared library
-set_target_properties(xattrplaying_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+    # Set the output directory for the shared library
+    set_target_properties(xattrplaying_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 
-# Set installation directory for the shared library
-install(TARGETS xattrplaying_plugin LIBRARY DESTINATION "${VLC_PLUGIN_INSTALL_DIR}")
+    # Set installation directory for the shared library
+    install(TARGETS xattrplaying_plugin LIBRARY DESTINATION "${VLC_PLUGIN_INSTALL_DIR}")
+else()
+    message(WARNING "VLC not found, disabling plugin build")
+endif()
 
 if(BUILD_TESTING)
     add_executable(tag_utils_tests
@@ -107,8 +109,3 @@ if(BUILD_TESTING)
     target_link_libraries(tag_utils_tests PRIVATE m)
     add_test(NAME tag_utils_tests COMMAND tag_utils_tests)
 endif()
-
-# Optionally: Copy the plugin to VLC plugins directory for development/testing
-#add_custom_command(TARGET xattrplaying_plugin POST_BUILD
-#        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:xattrplaying_plugin> ${VLC_INSTALL_DIR}/plugins/$<TARGET_FILE_NAME:xattrplaying_plugin>
-#)

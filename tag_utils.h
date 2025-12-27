@@ -58,4 +58,13 @@ void free_xattr_targets(xattr_target_t *targets, int count);
  */
 char *trim_token(char *psz_token);
 
+/**
+ * Check if the given path matches any of the prefixes in the skip list.
+ *
+ * \param psz_path The path to check (e.g., "/mnt/data/video.mp4").
+ * \param psz_skip_list Comma/semicolon/newline separated list of path prefixes.
+ * \return true if a match is found, false otherwise.
+ */
+bool should_skip_path(const char *psz_path, const char *psz_skip_list);
+
 #endif // TAG_UTILS_H

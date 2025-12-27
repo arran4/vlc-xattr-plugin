@@ -166,7 +166,7 @@ xattr_target_t *parse_xattr_targets(const char *config_str, int *count)
                 percent = 0; // Default to 0 if no percentage specified
             }
 
-            char *trimmed_name = trim_token(name); // trim name again just in case
+            const char *trimmed_name = trim_token(name); // trim name again just in case
 
             if (trimmed_name && *trimmed_name) {
                 targets[*count].name = strdup(trimmed_name);
@@ -189,4 +189,37 @@ void free_xattr_targets(xattr_target_t *targets, int count)
         free(targets[i].name);
     }
     free(targets);
+}
+
+bool should_skip_path(const char *psz_path, const char *psz_skip_list)
+{
+    if (psz_skip_list == NULL || *psz_skip_list == '\0')
+        return false;
+
+    if (psz_path == NULL)
+        return false;
+
+    char *psz_copy = strdup(psz_skip_list);
+    if (psz_copy == NULL)
+        return false;
+
+    bool b_match = false;
+    char *saveptr = NULL;
+    for (char *psz_token = strtok_r(psz_copy, ",;\n", &saveptr);
+         psz_token != NULL;
+         psz_token = strtok_r(NULL, ",;\n", &saveptr))
+    {
+        psz_token = trim_token(psz_token);
+        if (*psz_token == '\0')
+            continue;
+
+        size_t len = strlen(psz_token);
+        if (strncmp(psz_path, psz_token, len) == 0) {
+            b_match = true;
+            break;
+        }
+    }
+
+    free(psz_copy);
+    return b_match;
 }
