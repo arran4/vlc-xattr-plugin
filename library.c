@@ -273,16 +273,27 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
 
             if (!found && userXdgTags != NULL) {
                 printf("Adding a extended attribute %s\n", newTag);
-                int ret = setxattr(psz_path, "user.xdg.tags", userXdgTags, strlen(userXdgTags), 0);
-                if (ret == -1) {
-                    int err = errno;
-                    const char *psz_reason = xattr_error_reason(err);
-                    if (psz_reason != NULL) {
-                        msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s (%s)",
-                                psz_path, strerror(err), psz_reason);
-                    } else {
-                        msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s", psz_path,
-                                strerror(err));
+
+                size_t tag_len = strlen(userXdgTags);
+                size_t required_size = tag_len + 1; // Ensure space for null terminator
+                char *resized_tags = realloc(userXdgTags, required_size);
+                if (resized_tags == NULL) {
+                    msg_Err(p_this, "Failed to resize buffer for user.xdg.tags on %s", psz_path);
+                } else {
+                    userXdgTags = resized_tags;
+                    userXdgTags[tag_len] = '\0';
+
+                    int ret = setxattr(psz_path, "user.xdg.tags", userXdgTags, required_size, 0);
+                    if (ret == -1) {
+                        int err = errno;
+                        const char *psz_reason = xattr_error_reason(err);
+                        if (psz_reason != NULL) {
+                            msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s (%s)",
+                                    psz_path, strerror(err), psz_reason);
+                        } else {
+                            msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s", psz_path,
+                                    strerror(err));
+                        }
                     }
                 }
             }
