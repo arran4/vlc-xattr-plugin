@@ -45,7 +45,7 @@ set(SOURCES
 # Find VLC libraries and headers
 find_path(VLC_INCLUDE_DIR vlc_common.h
         PATHS ${VLC_INCLUDE_DIRS} /usr/include /usr/local/include
-        PATH_SUFFIXES include/vlc vlc
+        PATH_SUFFIXES include/vlc vlc vlc/plugins
         REQUIRED)
 
 find_library(VLC_LIBVLC_LIBRARY
