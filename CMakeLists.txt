@@ -5,6 +5,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 include(CTest)
+include(GNUInstallDirs)
 
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
@@ -20,6 +21,8 @@ find_library(VLC_PULSE_PATH NAMES vlc_pulse
             /usr/lib64
             /usr/local/lib
             /usr/local/lib64
+            ${CMAKE_INSTALL_LIBDIR}
+            ${CMAKE_INSTALL_FULL_LIBDIR}
         PATH_SUFFIXES "vlc"
         NO_CACHE)
 if(VLC_PULSE_PATH)
@@ -27,6 +30,9 @@ if(VLC_PULSE_PATH)
     message(STATUS "VLC_INSTALL_DIR: ${VLC_INSTALL_DIR} from ${VLC_PULSE_PATH}")
 endif()
 
+if(NOT VLC_INSTALL_DIR)
+    set(VLC_INSTALL_DIR "${CMAKE_INSTALL_FULL_LIBDIR}/vlc")
+endif()
 set(VLC_PLUGIN_INSTALL_DIR "${VLC_INSTALL_DIR}/plugins/misc" CACHE PATH
         "Installation directory for the VLC misc plugin")
 
@@ -45,14 +51,14 @@ find_path(VLC_INCLUDE_DIR vlc_common.h
 find_library(VLC_LIBVLC_LIBRARY
         NAMES vlc libvlc
         HINTS ${VLC_LIBRARY_DIRS}
-        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64
+        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR}
         REQUIRED
 )
 
 find_library(VLC_VLCCORE_LIBRARY
         NAMES vlccore libvlccore
         HINTS ${VLC_LIBRARY_DIRS}
-        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64
+        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${CMAKE_INSTALL_LIBDIR} ${CMAKE_INSTALL_FULL_LIBDIR}
         REQUIRED
 )
 
