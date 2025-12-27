@@ -14,18 +14,59 @@ Currently for any system that supports `setxattr` and `getxattr` which AFAIK is 
 
 # How to build it? 
 
-Currently I'm using: (To build and install)
-```
-cmake --build ./cmake-build-debug --target all -j 14
-sudo cmake --install ./cmake-build-debug
-```
-The install step installs `libxattrplaying_plugin.so` into `${VLC_INSTALL_DIR}/plugins/misc` by default.
-You can override this by setting `-DVLC_PLUGIN_INSTALL_DIR=/your/custom/path` when configuring CMake.
-
 Requirements:
 * VLC headers
 * Standard C Development Libraries for Linux
-* Cmake
+* CMake
+
+## Configure (out of tree)
+
+Use an out-of-tree build directory so generated files do not clutter the source tree:
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+```
+
+You can override the plugin install location during configuration with:
+
+```
+cmake -S . -B build -DVLC_PLUGIN_INSTALL_DIR=/your/custom/path
+```
+
+## Build
+
+Compile the plugin using the configured build directory:
+
+```
+cmake --build build
+```
+
+## Install
+
+Install the compiled plugin to the chosen prefix (defaults to `/usr/local`):
+
+```
+sudo cmake --install build
+```
+
+For packaging or staging installs, use `DESTDIR` to stage into a temporary root:
+
+```
+DESTDIR=/tmp/vlc-xattr-staging cmake --install build
+sudo DESTDIR=/tmp/pkg-root cmake --install build
+```
+
+The install step places `libxattrplaying_plugin.so` into `${VLC_PLUGIN_INSTALL_DIR}` (which defaults to `${CMAKE_INSTALL_LIBDIR}/vlc/plugins/misc`).
+
+### Common package install paths
+
+Distribution packaging may set different `libdir` defaults. Typical plugin destinations are:
+
+* Debian / Ubuntu: `/usr/lib/x86_64-linux-gnu/vlc/plugins/misc`
+* Fedora / RHEL / CentOS: `/usr/lib64/vlc/plugins/misc`
+* Arch Linux: `/usr/lib/vlc/plugins/misc`
+
+You can verify the active plugin path with `pkg-config --variable=pluginsdir vlc` or override it via `-DVLC_PLUGIN_INSTALL_DIR` when configuring CMake.
 
 # How to use it
 
