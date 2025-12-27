@@ -26,7 +26,6 @@ jobs:
               apt-get install -y --no-install-recommends \
                 ca-certificates \
                 build-essential \
-                ca-certificates \
                 clang \
                 clang-tidy \
                 cppcheck \
@@ -36,6 +35,8 @@ jobs:
                 libvlc-dev \
                 libvlccore-dev \
                 vlc-plugin-base
+              git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
+              git config --global --add safe.directory '*'
           - label: fedora-40
             image: fedora:40
             install: |
@@ -44,13 +45,14 @@ jobs:
               dnf -y install \
                 ca-certificates \
                 @development-tools \
-                ca-certificates \
                 clang-tools-extra \
                 cppcheck \
                 cmake \
                 git \
                 pkg-config \
                 vlc-devel
+              git config --global http.sslCAInfo /etc/pki/tls/certs/ca-bundle.crt
+              git config --global --add safe.directory '*'
     steps:
       - name: Install system dependencies
         run: ${{ matrix.install }}
