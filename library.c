@@ -11,6 +11,10 @@
 #include <sys/types.h>
 #include <sys/xattr.h>
 
+#ifndef MODULE_STRING
+#define MODULE_STRING "xattrplaying_plugin"
+#endif
+
 #ifdef HAVE_CONFIG_H
 # include "config.h"
 #endif
