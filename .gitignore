@@ -1,5 +1,2 @@
-/cmake-build-debug
-.idea
-/bin/libvlc_xattr_playing.so
-/bin/
-/lib/
+build/
+lib/

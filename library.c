@@ -27,12 +27,18 @@
 # include "config.h"
 #endif
 
+#ifndef N_
+# define N_(str) (str)
+#endif
+
 #define XATTR_SIZE 10000  // Maximum size of an extended attribute value
 #define DEFAULT_TAG_NAME "seen"
 
 static int Open(vlc_object_t *);
 static void Close(vlc_object_t *);
 static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
+                         vlc_value_t oldval, vlc_value_t newval, void *p_data);
+static int PositionChange(vlc_object_t *p_this, const char *psz_var,
                          vlc_value_t oldval, vlc_value_t newval, void *p_data);
 static int ItemChange(vlc_object_t *p_this, const char *psz_var,
                       vlc_value_t oldval, vlc_value_t newval, void *p_data);
@@ -49,7 +55,7 @@ static const char *xattr_error_reason(int err)
             return "No space left on device to store extended attributes";
         case EDQUOT:
             return "Quota exceeded while writing extended attributes";
-#ifdef ENOTSUP
+#if defined(ENOTSUP) && (!defined(EOPNOTSUPP) || EOPNOTSUPP != ENOTSUP)
         case ENOTSUP:
             return "Filesystem does not support extended attributes";
 #endif
@@ -70,7 +76,11 @@ struct intf_sys_t {
     input_thread_t         *p_input;            /**< current input thread   */
     input_item_t *p_item;                       /**< Previous item */
     bool b_tagging_enabled;                     /**< Whether to write xattrs */
-    char *psz_tag_name;                         /**< Tag to write */
+    char *psz_xattr_key;                        /**< Xattr key to use */
+    xattr_target_t *targets;                    /**< Configured targets */
+    int i_target_count;                         /**< Number of targets */
+    bool *b_target_applied;                     /**< Flags for applied targets for current item */
+    char *psz_current_path;                     /**< Current file path being played */
     char *psz_skip_paths;                       /**< Comma/newline-separated path prefixes to skip */
 };
 
@@ -89,6 +99,14 @@ vlc_module_begin()
              N_("Enable tagging"),
              N_("Write the configured tag to user.xdg.tags when playback starts."),
              false)
+    add_string("xattr-key", "user.xdg.tags",
+               N_("XAttr Key"),
+               N_("The extended attribute key to write tags to (default: user.xdg.tags)."),
+               false)
+    add_string("xattr-targets", "",
+               N_("Targets"),
+               N_("Comma-separated list of tags to apply at specific percentages (e.g., 'seen@90,started@0'). overrides tag-name if set."),
+               false)
     add_string("xattr-tag-name", DEFAULT_TAG_NAME,
                N_("Tag name"),
                N_("Tag to append to the user.xdg.tags extended attribute."),
@@ -100,17 +118,6 @@ vlc_module_begin()
     set_callbacks(Open, Close)
 vlc_module_end()
 
-static char *trim_token(char *psz_token)
-{
-    while (*psz_token && isspace((unsigned char)*psz_token))
-        psz_token++;
-
-    char *psz_end = psz_token + strlen(psz_token);
-    while (psz_end > psz_token && isspace((unsigned char)*(psz_end - 1)))
-        *(--psz_end) = '\0';
-
-    return psz_token;
-}
 
 static bool should_skip_path(const char *psz_path, const char *psz_skip_list)
 {
@@ -153,8 +160,29 @@ static int Open(vlc_object_t *p_this)
         return VLC_ENOMEM;
 
     p_intf->p_sys->b_tagging_enabled = var_InheritBool(p_intf, "xattr-tagging-enabled");
-    p_intf->p_sys->psz_tag_name = var_InheritString(p_intf, "xattr-tag-name");
+    p_intf->p_sys->psz_xattr_key = var_InheritString(p_intf, "xattr-key");
     p_intf->p_sys->psz_skip_paths = var_InheritString(p_intf, "xattr-skip-paths");
+
+    char *psz_targets = var_InheritString(p_intf, "xattr-targets");
+    if (psz_targets && *psz_targets) {
+        p_intf->p_sys->targets = parse_xattr_targets(psz_targets, &p_intf->p_sys->i_target_count);
+    } else {
+        // Fallback to xattr-tag-name with 0%
+        char *psz_tag_name = var_InheritString(p_intf, "xattr-tag-name");
+        if (psz_tag_name && *psz_tag_name) {
+             p_intf->p_sys->targets = calloc(1, sizeof(xattr_target_t));
+             p_intf->p_sys->targets[0].name = psz_tag_name; // Ownership transferred
+             p_intf->p_sys->targets[0].percent = 0;
+             p_intf->p_sys->i_target_count = 1;
+        } else {
+            free(psz_tag_name);
+        }
+    }
+    free(psz_targets);
+
+    if (p_intf->p_sys->i_target_count > 0) {
+        p_intf->p_sys->b_target_applied = calloc(p_intf->p_sys->i_target_count, sizeof(bool));
+    }
 
     var_AddCallback(pl_Get(p_intf), "input-current", ItemChange, p_intf);
 
@@ -170,18 +198,27 @@ static void Close(vlc_object_t *p_this)
     if (p_sys->p_input != NULL)
     {
         var_DelCallback(p_sys->p_input, "intf-event", PlayingChange, p_intf);
+        var_DelCallback(p_sys->p_input, "position", PositionChange, p_intf);
         vlc_object_release(p_sys->p_input);
         p_sys->p_input = NULL;
     }
-    free(p_sys->psz_tag_name);
+    free_xattr_targets(p_sys->targets, p_sys->i_target_count);
+    free(p_sys->b_target_applied);
+    free(p_sys->psz_xattr_key);
     free(p_sys->psz_skip_paths);
+    free(p_sys->psz_current_path);
     free(p_sys);
     p_intf->p_sys = NULL;
 }
 
+static void WriteTag(vlc_object_t *p_this, const char *psz_path, const char *newTag, const char *psz_xattr_key);
+
 /*****************************************************************************
  * ItemChange: Playlist item change callback
  *****************************************************************************/
+static int PositionChange(vlc_object_t *p_this, const char *psz_var,
+                         vlc_value_t oldval, vlc_value_t newval, void *p_data);
+
 static int ItemChange(vlc_object_t *p_this, const char *psz_var,
                       vlc_value_t oldval, vlc_value_t newval, void *p_data)
 {
@@ -195,6 +232,7 @@ static int ItemChange(vlc_object_t *p_this, const char *psz_var,
     if (p_sys->p_input != NULL)
     {
         var_DelCallback(p_sys->p_input, "intf-event", PlayingChange, p_intf);
+        var_DelCallback(p_sys->p_input, "position", PositionChange, p_intf);
         vlc_object_release(p_sys->p_input);
         p_sys->p_item = NULL;
         p_sys->p_input = NULL;
@@ -216,12 +254,141 @@ static int ItemChange(vlc_object_t *p_this, const char *psz_var,
         return VLC_SUCCESS;
     }
 
-    // p_sys->p_current_item.i_start = mdate(); TODO - switch on multiple different tags based on progress.
-
     p_sys->p_input = vlc_object_hold(p_input);
     var_AddCallback(p_input, "intf-event", PlayingChange, p_intf);
+    var_AddCallback(p_input, "position", PositionChange, p_intf);
 
     return VLC_SUCCESS;
+}
+
+static int PositionChange(vlc_object_t *p_this, const char *psz_var,
+                         vlc_value_t oldval, vlc_value_t newval, void *p_data)
+{
+    input_thread_t *p_input_thread = (input_thread_t *)p_this;
+    intf_thread_t  *p_intf  = p_data;
+    intf_sys_t     *p_sys   = p_intf->p_sys;
+
+    VLC_UNUSED(p_input_thread);
+    VLC_UNUSED(psz_var);
+    VLC_UNUSED(oldval);
+
+    if (!p_sys->b_tagging_enabled || p_sys->i_target_count == 0)
+        return VLC_SUCCESS;
+
+    if (p_sys->psz_current_path == NULL)
+        return VLC_SUCCESS;
+
+    if (should_skip_path(p_sys->psz_current_path, p_sys->psz_skip_paths))
+         return VLC_SUCCESS;
+
+    float position = newval.f_float;
+    int percent = (int)(position * 100);
+
+    for (int i = 0; i < p_sys->i_target_count; i++) {
+        if (!p_sys->b_target_applied[i] && percent >= p_sys->targets[i].percent) {
+             WriteTag((vlc_object_t*)p_intf, p_sys->psz_current_path, p_sys->targets[i].name, p_sys->psz_xattr_key);
+             p_sys->b_target_applied[i] = true;
+        }
+    }
+
+    return VLC_SUCCESS;
+}
+
+static void WriteTag(vlc_object_t *p_this, const char *psz_path, const char *newTag, const char *psz_xattr_key)
+{
+    char list[XATTR_SIZE];
+    char *list_dynamic = NULL;
+    ssize_t list_len;
+
+    // Get the list of extended attributes
+    list_len = listxattr(psz_path, list, XATTR_SIZE);
+    if (list_len == -1 && errno == ERANGE) {
+        list_len = listxattr(psz_path, NULL, 0);
+        if (list_len == -1) {
+            perror("listxattr");
+            return;
+        }
+        list_dynamic = malloc(list_len);
+        if (list_dynamic == NULL) {
+            perror("malloc");
+            return;
+        }
+        list_len = listxattr(psz_path, list_dynamic, list_len);
+    }
+    if (list_len == -1) {
+        msg_Err(p_this, "Failed to list xattrs for %s: %s", psz_path, strerror(errno));
+        return;
+    }
+
+    char *list_buffer = list_dynamic ? list_dynamic : list;
+    char *userXdgTags = strdup(newTag);
+
+    // Print each attribute and its value
+    bool xattr_key_found = false;
+    bool tag_added = false;
+    for (char *attr = list_buffer; attr < list_buffer + list_len; attr += strlen(attr) + 1) {
+        char value[XATTR_SIZE];
+        char *value_dynamic = NULL;
+        ssize_t value_len = getxattr(psz_path, attr, value, XATTR_SIZE);
+        if (value_len == -1 && errno == ERANGE) {
+            value_len = getxattr(psz_path, attr, NULL, 0);
+            if (value_len == -1) {
+                perror("getxattr");
+                continue;
+            }
+            value_dynamic = malloc(value_len);
+            if (value_dynamic == NULL) {
+                perror("malloc");
+                continue;
+            }
+            value_len = getxattr(psz_path, attr, value_dynamic, value_len);
+        }
+        if (value_len == -1) {
+            perror("getxattr");
+            free(value_dynamic);
+            continue;
+        }
+        char *value_buffer = value_dynamic ? value_dynamic : value;
+        if (strcasecmp(psz_xattr_key, attr) == 0) {
+            xattr_key_found = true;
+            free(userXdgTags);
+            char *value_copy = strndup(value_buffer, value_len);
+            userXdgTags = xdg_tags_append_if_missing(value_copy, newTag, &tag_added);
+            free(value_copy);
+        }
+        free(value_dynamic);
+    }
+
+    if ((!xattr_key_found || tag_added) && userXdgTags != NULL) {
+        printf("Adding a extended attribute %s to key %s\n", newTag, psz_xattr_key);
+
+        size_t tag_len = strlen(userXdgTags);
+        size_t required_size = tag_len + 1; // Ensure space for null terminator
+        char *resized_tags = realloc(userXdgTags, required_size);
+        if (resized_tags == NULL) {
+            msg_Err(p_this, "Failed to resize buffer for %s on %s", psz_xattr_key, psz_path);
+        } else {
+            userXdgTags = resized_tags;
+            userXdgTags[tag_len] = '\0';
+
+            int ret = setxattr(psz_path, psz_xattr_key, userXdgTags, required_size, 0);
+            if (ret == -1) {
+                int err = errno;
+                const char *psz_reason = xattr_error_reason(err);
+                if (psz_reason != NULL) {
+                    msg_Err(p_this, "Failed to set xattr %s on %s: %s (%s)",
+                            psz_xattr_key, psz_path, strerror(err), psz_reason);
+                } else {
+                    msg_Err(p_this, "Failed to set xattr %s on %s: %s", psz_xattr_key, psz_path,
+                            strerror(err));
+                }
+            }
+        }
+    }
+    if (userXdgTags != NULL) {
+        free(userXdgTags);
+    }
+    free(list_dynamic);
 }
 
 static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
@@ -231,173 +398,44 @@ static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
     intf_thread_t  *p_intf  = p_data;
     intf_sys_t     *p_sys   = p_intf->p_sys;
     input_item_t *p_item = input_GetItem(p_input_thread);
+
     if (p_item && p_item != p_sys->p_item) {
         p_sys->p_item = p_item;
+
+        // Reset applied flags
+        if (p_sys->b_target_applied) {
+            memset(p_sys->b_target_applied, 0, sizeof(bool) * p_sys->i_target_count);
+        }
+
+        // Resolve path once
+        free(p_sys->psz_current_path);
+        p_sys->psz_current_path = NULL;
+
+        char *psz_uri = input_item_GetURI(p_item);
+        if (psz_uri) {
+            const char *psz_scheme_end = strstr(psz_uri, "://");
+            if (psz_scheme_end != NULL) {
+                size_t scheme_len = psz_scheme_end - psz_uri;
+                if (scheme_len == 4 && strncasecmp(psz_uri, "file", 4) == 0) {
+                     const char *psz_path_start = psz_scheme_end + 3; // Skip "://"
+                     if (*psz_path_start != '\0') {
+                         p_sys->psz_current_path = strdup(psz_path_start);
+                         if (p_sys->psz_current_path) {
+                            if (p_sys->psz_current_path[0] == '/' && isalpha((unsigned char)p_sys->psz_current_path[1]) && p_sys->psz_current_path[2] == ':') {
+                                memmove(p_sys->psz_current_path, p_sys->psz_current_path + 1, strlen(p_sys->psz_current_path) + 1);
+                            }
+                            url_decode_inplace(p_sys->psz_current_path);
+                         }
+                     }
+                }
+            }
+            free(psz_uri);
+        }
+
         char *psz_name = input_item_GetTitleFbName(p_item);
         if (psz_name) {
             msg_Info(p_this, "Now playing: %s", psz_name);
             free(psz_name);
-        }
-
-        char *psz_uri = input_item_GetURI(p_item);
-        if (psz_uri) {
-            char *psz_path = NULL;
-            const char *psz_scheme_end = strstr(psz_uri, "://");
-
-            if (psz_scheme_end == NULL) {
-                msg_Dbg(p_this, "Skipping URI without scheme: %s", psz_uri);
-                free(psz_uri);
-                return VLC_SUCCESS;
-            }
-
-            size_t scheme_len = psz_scheme_end - psz_uri;
-            if (scheme_len != 4 || strncasecmp(psz_uri, "file", 4) != 0) {
-                msg_Dbg(p_this, "Skipping non-file URI: %s", psz_uri);
-                free(psz_uri);
-                return VLC_SUCCESS;
-            }
-
-            const char *psz_path_start = psz_scheme_end + 3; // Skip "://"
-            if (*psz_path_start == '\0') {
-                msg_Dbg(p_this, "Skipping file URI without a path: %s", psz_uri);
-                free(psz_uri);
-                return VLC_SUCCESS;
-            }
-
-            psz_path = strdup(psz_path_start);
-            if (psz_path == NULL) {
-                msg_Err(p_this, "Failed to allocate memory for path");
-                free(psz_uri);
-                return VLC_SUCCESS;
-            }
-
-            if (psz_path[0] == '/' && isalpha((unsigned char)psz_path[1]) && psz_path[2] == ':') {
-                memmove(psz_path, psz_path + 1, strlen(psz_path) + 1);
-            }
-
-            url_decode_inplace(psz_path);
-
-            char list[XATTR_SIZE];
-            char *list_dynamic = NULL;
-            ssize_t list_len;
-
-            // Get the list of extended attributes
-            list_len = listxattr(psz_path, list, XATTR_SIZE);
-            if (list_len == -1 && errno == ERANGE) {
-                list_len = listxattr(psz_path, NULL, 0);
-                if (list_len == -1) {
-                    perror("listxattr");
-                    exit(EXIT_FAILURE);
-                }
-                list_dynamic = malloc(list_len);
-                if (list_dynamic == NULL) {
-                    perror("malloc");
-                    exit(EXIT_FAILURE);
-                }
-                list_len = listxattr(psz_path, list_dynamic, list_len);
-            }
-            if (list_len == -1) {
-                msg_Err(p_this, "Failed to list xattrs for %s: %s", psz_path, strerror(errno));
-                free(psz_uri);
-                free(psz_path);
-                return VLC_SUCCESS;
-            }
-
-            char *list_buffer = list_dynamic ? list_dynamic : list;
-
-            if (!p_sys->b_tagging_enabled) {
-                msg_Dbg(p_this, "Tagging disabled via module options; skipping %s", psz_path);
-                free(psz_uri);
-                free(psz_path);
-                return VLC_SUCCESS;
-            }
-
-            const char *psz_tag_name = p_sys->psz_tag_name && *p_sys->psz_tag_name
-                                        ? p_sys->psz_tag_name
-                                        : DEFAULT_TAG_NAME;
-            if (*psz_tag_name == '\0') {
-                msg_Warn(p_this, "Configured tag name is empty; skipping xattr update for %s", psz_path);
-                free(psz_uri);
-                free(psz_path);
-                return VLC_SUCCESS;
-            }
-
-            if (should_skip_path(psz_path, p_sys->psz_skip_paths)) {
-                msg_Dbg(p_this, "Path matches skip list; not tagging %s", psz_path);
-                free(psz_uri);
-                free(psz_path);
-                return VLC_SUCCESS;
-            }
-
-            const char *newTag = psz_tag_name;
-            char *userXdgTags = strdup(newTag);
-
-            // Print each attribute and its value
-            bool found = false;
-            for (char *attr = list_buffer; attr < list_buffer + list_len; attr += strlen(attr) + 1) {
-                char value[XATTR_SIZE];
-                char *value_dynamic = NULL;
-                ssize_t value_len = getxattr(psz_path, attr, value, XATTR_SIZE);
-                if (value_len == -1 && errno == ERANGE) {
-                    value_len = getxattr(psz_path, attr, NULL, 0);
-                    if (value_len == -1) {
-                        perror("getxattr");
-                        continue;
-                    }
-                    value_dynamic = malloc(value_len);
-                    if (value_dynamic == NULL) {
-                        perror("malloc");
-                        continue;
-                    }
-                    value_len = getxattr(psz_path, attr, value_dynamic, value_len);
-                }
-                if (value_len == -1) {
-                    perror("getxattr");
-                    free(value_dynamic);
-                    continue;
-                }
-                char *value_buffer = value_dynamic ? value_dynamic : value;
-                if (strcasecmp("user.xdg.tags", attr) == 0) {
-                    free(userXdgTags);
-                    char *value_copy = strndup(value_buffer, value_len);
-                    userXdgTags = xdg_tags_append_if_missing(value_copy, newTag, &found);
-                    free(value_copy);
-                }
-                free(value_dynamic);
-            }
-
-            if (!found && userXdgTags != NULL) {
-                printf("Adding a extended attribute %s\n", newTag);
-
-                size_t tag_len = strlen(userXdgTags);
-                size_t required_size = tag_len + 1; // Ensure space for null terminator
-                char *resized_tags = realloc(userXdgTags, required_size);
-                if (resized_tags == NULL) {
-                    msg_Err(p_this, "Failed to resize buffer for user.xdg.tags on %s", psz_path);
-                } else {
-                    userXdgTags = resized_tags;
-                    userXdgTags[tag_len] = '\0';
-
-                    int ret = setxattr(psz_path, "user.xdg.tags", userXdgTags, required_size, 0);
-                    if (ret == -1) {
-                        int err = errno;
-                        const char *psz_reason = xattr_error_reason(err);
-                        if (psz_reason != NULL) {
-                            msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s (%s)",
-                                    psz_path, strerror(err), psz_reason);
-                        } else {
-                            msg_Err(p_this, "Failed to set xattr user.xdg.tags on %s: %s", psz_path,
-                                    strerror(err));
-                        }
-                    }
-                }
-            }
-            if (userXdgTags != NULL) {
-                free(userXdgTags);
-            }
-            free(list_dynamic);
-            free(psz_path);
-            free(psz_uri);
         }
     }
     return VLC_SUCCESS;

@@ -63,12 +63,51 @@ static void test_xdg_tags_append_if_missing(void)
     free(result);
 }
 
+static void test_parse_xattr_targets(void)
+{
+    int count = 0;
+    xattr_target_t *targets;
+
+    // Test 1: Simple case
+    targets = parse_xattr_targets("seen@90", &count);
+    assert(count == 1);
+    assert(strcmp(targets[0].name, "seen") == 0);
+    assert(targets[0].percent == 90);
+    free_xattr_targets(targets, count);
+
+    // Test 2: Multiple tags
+    targets = parse_xattr_targets("seen@90,started@0", &count);
+    assert(count == 2);
+    assert(strcmp(targets[0].name, "seen") == 0);
+    assert(targets[0].percent == 90);
+    assert(strcmp(targets[1].name, "started") == 0);
+    assert(targets[1].percent == 0);
+    free_xattr_targets(targets, count);
+
+    // Test 3: Whitespace handling
+    targets = parse_xattr_targets(" seen @ 50 ,  watched ", &count);
+    assert(count == 2);
+    assert(strcmp(targets[0].name, "seen") == 0);
+    assert(targets[0].percent == 50);
+    assert(strcmp(targets[1].name, "watched") == 0);
+    assert(targets[1].percent == 0); // Default
+    free_xattr_targets(targets, count);
+
+    // Test 4: Invalid percentage
+    targets = parse_xattr_targets("seen@200,bad@-1", &count);
+    assert(count == 2);
+    assert(targets[0].percent == 100); // Clamped
+    assert(targets[1].percent == 0);   // Clamped
+    free_xattr_targets(targets, count);
+}
+
 int main(void)
 {
     test_decode_percent_sequence_valid();
     test_decode_percent_sequence_invalid();
     test_url_decode_inplace();
     test_xdg_tags_append_if_missing();
+    test_parse_xattr_targets();
 
     printf("All tests passed\n");
     return 0;
