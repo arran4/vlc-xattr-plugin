@@ -86,11 +86,15 @@ static int ItemChange(vlc_object_t *p_this, const char *psz_var,
     {
         var_DelCallback(p_sys->p_input, "intf-event", PlayingChange, p_intf);
         vlc_object_release(p_sys->p_input);
+        p_sys->p_item = NULL;
         p_sys->p_input = NULL;
     }
 
     if (p_input == NULL)
+    {
+        p_sys->p_item = NULL;
         return VLC_SUCCESS;
+    }
 
     input_item_t *p_item = input_GetItem(p_input);
     if (p_item == NULL)
