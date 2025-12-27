@@ -119,8 +119,3 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME xattr_compat_tests COMMAND xattr_compat_tests)
 endif()
-
-# Optionally: Copy the plugin to VLC plugins directory for development/testing
-#add_custom_command(TARGET xattrplaying_plugin POST_BUILD
-#        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:xattrplaying_plugin> ${VLC_INSTALL_DIR}/plugins/$<TARGET_FILE_NAME:xattrplaying_plugin>
-#)
