@@ -35,6 +35,11 @@ jobs:
         run: |
           mkdir -p build/debian/DEBIAN/
           cp debian/* build/debian/DEBIAN/
+          sed -i 's/\${misc:Depends}, //g' build/debian/DEBIAN/control
+          sed -i 's/\${shlibs:Depends}, //g' build/debian/DEBIAN/control
+          sed -i 's/, \${misc:Depends}//g' build/debian/DEBIAN/control
+          sed -i 's/, \${shlibs:Depends}//g' build/debian/DEBIAN/control
+          sed -i 's/Architecture: any/Architecture: amd64/g' build/debian/DEBIAN/control
           mkdir -p build/debian/usr/lib/x86_64-linux-gnu/vlc/plugins/misc
           cp lib/libxattrplaying_plugin.so build/debian/usr/lib/x86_64-linux-gnu/vlc/plugins/misc/
           cd build
