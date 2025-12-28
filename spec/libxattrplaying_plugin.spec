@@ -5,6 +5,7 @@ Summary: A plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags`
 
 License: MIT
 URL: https://github.com/arran4/vlc-xattr-plugin
+Source0: %{name}-%{version}.tar.gz
 BuildRequires: vlc-devel
 BuildRequires: cmake
 BuildRequires: gcc
