@@ -18,14 +18,14 @@ This is a plugin for VLC which adds the xattr tag 'seen' to the `user.xdg.tags` 
 %setup -q
 
 %build
-%cmake -B build -S . -DVLC_PLUGIN_INSTALL_DIR=%{_libdir}/vlc/plugins/misc
-%cmake_build -B build
+cmake -B build -S . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DVLC_PLUGIN_INSTALL_DIR=%{_libdir}/vlc/plugins/misc
+cmake --build build
 
 %install
 mkdir -p %{buildroot}/usr/lib64/vlc/plugins/misc/
 cp libxattrplaying_plugin.so %{buildroot}/usr/lib64/vlc/plugins/misc/
 mkdir -p %{buildroot}%{_defaultlicensedir}/%{name}
-%cmake_install -B build
+DESTDIR="%{buildroot}" cmake --install build
 cp LICENSE %{buildroot}%{_defaultlicensedir}/%{name}/
 
 %files
