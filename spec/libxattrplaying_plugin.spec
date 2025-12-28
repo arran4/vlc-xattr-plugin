@@ -22,8 +22,6 @@ cmake -B build -S . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DVLC_PLUGIN_INSTALL_DIR=%
 cmake --build build
 
 %install
-mkdir -p %{buildroot}/usr/lib64/vlc/plugins/misc/
-cp libxattrplaying_plugin.so %{buildroot}/usr/lib64/vlc/plugins/misc/
 mkdir -p %{buildroot}%{_defaultlicensedir}/%{name}
 DESTDIR="%{buildroot}" cmake --install build
 cp LICENSE %{buildroot}%{_defaultlicensedir}/%{name}/
