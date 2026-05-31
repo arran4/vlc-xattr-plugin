@@ -38,6 +38,8 @@
 #define XATTR_SIZE 10000  // Maximum size of an extended attribute value
 #define DEFAULT_TAG_NAME "seen"
 
+#define DEFAULT_XATTR_KEY "user.xdg.tags"
+
 static int Open(vlc_object_t *);
 static void Close(vlc_object_t *);
 static int PlayingChange(vlc_object_t *p_this, const char *psz_var,
@@ -96,16 +98,16 @@ vlc_module_begin()
     set_capability("interface", 1)
     /* Module options:
      *  - xattr-tagging-enabled: master switch to enable/disable xattr writes.
-     *  - xattr-tag-name: tag to append to user.xdg.tags (default: "seen").
+     *  - xattr-tag-name: tag to append to the default extended attribute (default: "seen").
      *  - xattr-skip-paths: comma/newline separated absolute path prefixes to skip.
      */
     add_bool("xattr-tagging-enabled", true,
              N_("Enable tagging"),
-             N_("Write the configured tag to user.xdg.tags when playback starts."),
+             N_("Write the configured tag to the configured extended attribute when playback starts."),
              false)
-    add_string("xattr-key", "user.xdg.tags",
+    add_string("xattr-key", DEFAULT_XATTR_KEY,
                N_("XAttr Key"),
-               N_("The extended attribute key to write tags to (default: user.xdg.tags)."),
+               N_("The extended attribute key to write tags to."),
                false)
     add_string("xattr-targets", "",
                N_("Targets"),
@@ -113,7 +115,7 @@ vlc_module_begin()
                false)
     add_string("xattr-tag-name", DEFAULT_TAG_NAME,
                N_("Tag name"),
-               N_("Tag to append to the user.xdg.tags extended attribute."),
+               N_("Tag to append to the extended attribute."),
                false)
     add_string("xattr-skip-paths", "",
                N_("Skip paths"),
