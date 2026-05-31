@@ -38,11 +38,7 @@
 #define XATTR_SIZE 10000  // Maximum size of an extended attribute value
 #define DEFAULT_TAG_NAME "seen"
 
-#if defined(__APPLE__)
-#define DEFAULT_XATTR_KEY "com.apple.metadata:_kMDItemUserTags"
-#else
 #define DEFAULT_XATTR_KEY "user.xdg.tags"
-#endif
 
 static int Open(vlc_object_t *);
 static void Close(vlc_object_t *);
